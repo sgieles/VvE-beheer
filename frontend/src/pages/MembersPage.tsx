@@ -68,6 +68,12 @@ export default function MembersPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members', vveId] }),
   })
 
+  const handleDeactivate = (id: number, name: string) => {
+    if (window.confirm(`Weet u zeker dat u ${name} wilt deactiveren?`)) {
+      deactivate.mutate(id)
+    }
+  }
+
   if (isLoading) return <div className="p-8 text-gray-500">Laden...</div>
 
   const totalAandeel = members.reduce((sum, m) => sum + (m.aandeel ? parseFloat(m.aandeel) : 0), 0)
@@ -160,7 +166,7 @@ export default function MembersPage() {
                         </button>
                         {m.is_active && (
                           <button
-                            onClick={() => deactivate.mutate(m.id)}
+                            onClick={() => handleDeactivate(m.id, m.full_name ?? m.username)}
                             className="text-gray-400 hover:text-red-500 transition-colors"
                             title="Deactiveren"
                           >

@@ -34,7 +34,6 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    vve_id: int
 
 
 class UserUpdate(BaseModel):

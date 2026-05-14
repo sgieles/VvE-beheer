@@ -317,14 +317,21 @@ function UploadMinutesForm({ vveId, meetingId }: { vveId: number; meetingId: num
 
 function NewMeetingModal({ vveId, onClose, onSaved }: { vveId: number; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({ title: '', meeting_date: '', location: '' })
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await api.post(`/vves/${vveId}/meetings`, {
-      ...form,
-      meeting_date: new Date(form.meeting_date).toISOString(),
-    })
-    onSaved()
+    setError('')
+    try {
+      await api.post(`/vves/${vveId}/meetings`, {
+        ...form,
+        meeting_date: new Date(form.meeting_date).toISOString(),
+      })
+      onSaved()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(msg ?? 'Er is een fout opgetreden')
+    }
   }
 
   return (
@@ -349,6 +356,7 @@ function NewMeetingModal({ vveId, onClose, onSaved }: { vveId: number; onClose: 
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
               placeholder="bijv. Online via Teams of adres" />
           </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Annuleren</button>
             <button type="submit" className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium">Aanmaken</button>

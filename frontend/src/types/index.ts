@@ -1,0 +1,143 @@
+export type Role = 'platform_admin' | 'beheerder' | 'eigenaar'
+export type ContributionFrequency = 'monthly' | 'quarterly'
+
+export interface VvE {
+  id: number
+  name: string
+  address?: string
+  kvk_number?: string
+  contribution_frequency: ContributionFrequency
+  is_active: boolean
+  created_at: string
+}
+
+export interface User {
+  id: number
+  vve_id?: number
+  username: string
+  email: string
+  full_name?: string
+  role: Role
+  aandeel?: string
+  appartement_nummer?: string
+  address?: string
+  is_active: boolean
+  created_at: string
+  vve?: VvE
+}
+
+export interface MJOPUpload {
+  id: number
+  vve_id: number
+  original_filename: string
+  status: 'processing' | 'active' | 'archived'
+  uploaded_at: string
+}
+
+export interface MJOPItem {
+  id: number
+  vve_id: number
+  mjop_upload_id: number
+  description: string
+  category?: string
+  planned_year: number
+  planned_quarter?: number
+  planned_amount: string
+  actual_amount?: string
+  status: 'planned' | 'quoted' | 'approved' | 'completed'
+  manually_adjusted: boolean
+  notes?: string
+  quotes: Quote[]
+}
+
+export interface Quote {
+  id: number
+  vve_id: number
+  mjop_item_id: number
+  supplier_name: string
+  quoted_amount: string
+  document_path?: string
+  notes?: string
+  is_approved: boolean
+  approved_at?: string
+  final_amount?: string
+  created_at: string
+}
+
+export interface ReserveFondsEntry {
+  id: number
+  vve_id: number
+  entry_date: string
+  amount: string
+  description?: string
+  created_at: string
+}
+
+export interface ContributionPlan {
+  id: number
+  vve_id: number
+  amount_per_period: string
+  effective_from: string
+  effective_to?: string
+  notes?: string
+  created_at: string
+}
+
+export interface ScenarioResult {
+  scenario_type: 'contribution_increase' | 'defer_activity' | 'one_time_levy'
+  description: string
+  [key: string]: unknown
+}
+
+export interface FinancialDashboard {
+  current_reservefonds_balance: number
+  contribution_frequency: ContributionFrequency
+  current_contribution_per_period: number
+  total_planned_costs_next_5_years: number
+  total_planned_costs_next_10_years: number
+  projected_balance_by_year: Array<{
+    year: number
+    costs: number
+    contributions: number
+    balance: number
+    shortfall: number
+  }>
+  shortfalls: Array<{ year: number; shortfall: number }>
+  scenarios: ScenarioResult[]
+}
+
+export interface Meeting {
+  id: number
+  vve_id: number
+  title: string
+  meeting_date: string
+  location?: string
+  teams_url?: string
+  status: 'planned' | 'in_progress' | 'completed'
+  created_at: string
+}
+
+export interface AgendaItem {
+  id: number
+  vve_id: number
+  meeting_id?: number
+  submitted_by_id: number
+  title: string
+  description?: string
+  submitted_at: string
+  is_included: boolean
+  order_index?: number
+}
+
+export interface MeetingMinutes {
+  id: number
+  vve_id: number
+  meeting_id: number
+  content?: string
+  document_path?: string
+  uploaded_at: string
+  uploaded_by_id: number
+  is_approved: boolean
+  approved_at?: string
+  approved_by_id?: number
+}

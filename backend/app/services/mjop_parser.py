@@ -121,53 +121,142 @@ def parse_excel(file_path: str) -> list[dict]:
 
 
 def parse_pdf(file_path: str) -> list[dict]:
-    """Parse een PDF MJOP bestand. Extracteert tabellen met pdfplumber."""
+    """Parse een PDF MJOP bestand.
+
+    Ondersteunt twee formaten:
+    1. Gedetailleerde activiteitsregels: '[omschrijving] [hoeveelheid] [jaar] [bedragen]'
+    2. Samenvattingspagina (Hoofdgroepen) met jaar-kolommen in de header.
+    """
     import pdfplumber
 
     items = []
+    seen: set[tuple] = set()  # deduplicatie
+
+    # Regex: activiteitsregel met een jaar (Stj) gevolgd door € bedragen
+    ACTIVITY_RE = re.compile(
+        r"^(.+?)"                               # beschrijving (non-greedy)
+        r"\s+[\d]+[,.][\d]+\s*\w{0,4}"         # hoeveelheid + eenheid (bijv. 1,00pst)
+        r"\s+(20\d{2})"                         # startjaar
+        r"(?:\s+\d{1,2})?"                      # optioneel cyclus
+        r"((?:\s+[€€]\s*[\d.,]+)+)",       # één of meer bedragen
+    )
+    # Fallback: elke regel met jaar + bedrag
+    SIMPLE_RE = re.compile(
+        r"(20\d{2})(?:\s+\d{1,2})?"            # jaar (+ optionele cyclus)
+        r"((?:\s+[€€]\s*[\d.,]+)+)",       # één of meer bedragen
+    )
+
+    SKIP_PREFIXES = ("totaal", "btw", "code/", "code ", "hvhehd", "conditie",
+                     "14-11", "20211", "kinderdijk", "amsterdam")
+
+    def _extract_first_amount(amounts_str: str) -> Decimal | None:
+        found = re.findall(r"[€€]\s*([\d.,]+)", amounts_str)
+        return _normalize_amount(found[0]) if found else None
+
     with pdfplumber.open(file_path) as pdf:
         for page in pdf.pages:
-            tables = page.extract_tables()
-            for table in tables:
-                if not table or len(table) < 2:
-                    continue
-                # Eerste rij als header
-                headers = [str(h).strip().lower() if h else "" for h in table[0]]
-                year_col = next((i for i, h in enumerate(headers) if any(k in h for k in YEAR_KEYWORDS)), None)
-                desc_col = next((i for i, h in enumerate(headers) if any(k in h for k in DESC_KEYWORDS)), None)
-                amount_col = next((i for i, h in enumerate(headers) if any(k in h for k in AMOUNT_KEYWORDS)), None)
+            text = page.extract_text() or ""
 
-                for row in table[1:]:
-                    if not row or all(c is None for c in row):
+            # --- Methode 1: gedetailleerde activiteitenpagina's ---
+            if "Code/Element" in text or "Handeling" in text:
+                lines = text.split("\n")
+                fallback_desc = ""
+
+                for line in lines:
+                    stripped = line.strip()
+                    if not stripped:
                         continue
-                    year, quarter = None, None
-                    description, amount = None, None
+                    low = stripped.lower()
+                    if any(low.startswith(p) for p in SKIP_PREFIXES):
+                        continue
 
-                    if year_col is not None and year_col < len(row):
-                        year, quarter = _parse_year_quarter_from_cell(row[year_col] or "")
-                    if desc_col is not None and desc_col < len(row):
-                        description = str(row[desc_col] or "").strip()
-                    if amount_col is not None and amount_col < len(row):
-                        amount = _normalize_amount(row[amount_col])
+                    m = ACTIVITY_RE.match(stripped)
+                    if m:
+                        desc = m.group(1).strip()
+                        # Verwijder eventuele gebrekscode achteraan (bijv. "Scheurvorming")
+                        desc = re.sub(r"\s+[A-Z][a-z]+$", "", desc).strip()
+                        year = int(m.group(2))
+                        amount = _extract_first_amount(m.group(3))
+                        if amount and amount > 0 and 2020 <= year <= 2060:
+                            key = (year, desc[:50])
+                            if key not in seen:
+                                seen.add(key)
+                                items.append({
+                                    "planned_year": year,
+                                    "planned_quarter": None,
+                                    "description": desc or fallback_desc or "MJOP post",
+                                    "planned_amount": amount,
+                                    "category": None,
+                                })
+                    else:
+                        # Sla elementnaam op als context voor volgende regels
+                        clean = re.sub(r"^\d{2,4}\s+", "", stripped)
+                        if len(clean) > 5 and not re.search(r"[€€]", clean):
+                            fallback_desc = clean
 
-                    # Fallback: scan alle cellen
-                    if year is None:
-                        for cell in row:
-                            y, q = _parse_year_quarter_from_cell(cell or "")
-                            if y:
-                                year = y
-                                if q:
-                                    quarter = q
-                                break
+                # Als methode 1 niets vond: val terug op SIMPLE_RE
+                if not items:
+                    for line in lines:
+                        stripped = line.strip()
+                        if not stripped or any(stripped.lower().startswith(p) for p in SKIP_PREFIXES):
+                            continue
+                        sm = SIMPLE_RE.search(stripped)
+                        if sm:
+                            year = int(sm.group(1))
+                            amount = _extract_first_amount(sm.group(2))
+                            desc_part = stripped[:sm.start()].strip()
+                            desc_part = re.sub(r"\s*[\d,]+\s*\w{0,4}\s*$", "", desc_part).strip()
+                            if amount and amount > 0 and 2020 <= year <= 2060 and len(desc_part) > 2:
+                                key = (year, desc_part[:50])
+                                if key not in seen:
+                                    seen.add(key)
+                                    items.append({
+                                        "planned_year": year,
+                                        "planned_quarter": None,
+                                        "description": desc_part,
+                                        "planned_amount": amount,
+                                        "category": None,
+                                    })
 
-                    if year and description and amount and len(description) > 1:
-                        items.append({
-                            "planned_year": year,
-                            "planned_quarter": quarter,
-                            "description": description,
-                            "planned_amount": amount,
-                            "category": None,
-                        })
+            # --- Methode 2: samenvattingspagina (Hoofdgroepen) ---
+            elif "Hoofdgroepen" in text or "hoofdgroep" in text.lower():
+                lines = text.split("\n")
+                header_years: list[int] = []
+
+                for line in lines:
+                    years_found = re.findall(r"\b(20\d{2})\b", line)
+                    if len(years_found) >= 3:
+                        header_years = [int(y) for y in years_found]
+                        continue
+
+                    if not header_years:
+                        continue
+
+                    # Dataregel: begint met code + omschrijving, gevolgd door bedragen
+                    row_match = re.match(r"^(\d{2,4})\s+(.+?)\s+([€€].*)", line.strip())
+                    if not row_match:
+                        continue
+
+                    desc = row_match.group(2).strip()
+                    amounts_str = row_match.group(3)
+                    amounts = [_normalize_amount(v) for v in re.findall(r"[€€]\s*([\d.,]+)", amounts_str)]
+                    # Laatste bedrag is het totaal; de rest zijn per-jaar bedragen
+                    year_amounts = amounts[:-1] if len(amounts) > 1 else amounts
+
+                    for i, amt in enumerate(year_amounts):
+                        if amt and amt > 0 and i < len(header_years):
+                            year = header_years[i]
+                            key = (year, desc[:50])
+                            if key not in seen:
+                                seen.add(key)
+                                items.append({
+                                    "planned_year": year,
+                                    "planned_quarter": None,
+                                    "description": desc,
+                                    "planned_amount": amt,
+                                    "category": None,
+                                })
+
     return items
 
 

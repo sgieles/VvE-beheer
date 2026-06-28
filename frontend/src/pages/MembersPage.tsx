@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
-import type { User, ContributionPlan, VvE } from '@/types'
+import type { User, ContributionPlan, VvE, Role } from '@/types'
 import { UserPlus, Pencil, Ban, CheckCircle } from 'lucide-react'
 
 // Zet decimaal aandeel om naar breuk (bijv. 0.4 → "2/5")
@@ -282,7 +282,7 @@ function MemberForm({ vveId, editUser, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
                 <option value="eigenaar">Eigenaar</option>
                 <option value="beheerder">Beheerder</option>

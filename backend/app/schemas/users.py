@@ -49,6 +49,7 @@ class UserUpdate(BaseModel):
 class UserOut(UserBase):
     id: int
     vve_id: int | None
+    email: str  # override: sla EmailStr-validatie over bij output
     is_active: bool
     created_at: datetime
 

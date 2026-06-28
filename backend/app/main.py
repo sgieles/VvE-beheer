@@ -24,7 +24,12 @@ def _seed_admin_if_needed():
 
     db = SessionLocal()
     try:
-        if db.query(User).filter(User.username == settings.ADMIN_USERNAME).first():
+        existing = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
+        if existing:
+            # Corrigeer legacy .local email uit eerdere seed
+            if existing.email.endswith(".local"):
+                existing.email = f"{settings.ADMIN_USERNAME}@vvebeheer.nl"
+                db.commit()
             return
         vve = db.query(VvE).first()
         if not vve:
@@ -34,7 +39,7 @@ def _seed_admin_if_needed():
         db.add(User(
             vve_id=vve.id,
             username=settings.ADMIN_USERNAME,
-            email=f"{settings.ADMIN_USERNAME}@vvebeheer.local",
+            email=f"{settings.ADMIN_USERNAME}@vvebeheer.nl",
             full_name="Beheerder",
             hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
             role="platform_admin",

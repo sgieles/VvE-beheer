@@ -95,9 +95,9 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [x] Vroegtijdige waarschuwing op dashboard (tekort binnen 2 jaar) — suggestie D ✅
 - [x] Inflatie-/indexatiecorrectie via query-parameter `?inflatie=X` — suggestie A ✅
 - [ ] Tijdsgranulariteit instelbaar: per jaar / kwartaal / maand
-- [ ] Jaar-filter: kijkperiode instellen (5 / 10 / 20 jaar of aangepast)
-- [ ] Gestapeld staafdiagram: bijdragen (groen) vs. kosten (rood) per periode
-- [ ] Tekortanalyse: lijst van periodes met tekort + bedrag
+- [x] Jaar-filter: kijkperiode instellen (5 / 10 / 20 jaar of aangepast)
+- [x] Gestapeld staafdiagram: bijdragen (groen) vs. kosten (rood) per periode
+- [x] Tekortanalyse: lijst van periodes met tekort + bedrag
 
 **Slimme planning**
 - [ ] Algoritme: verschuif duurste posten in tekortperiodes naar aangrenzende periodes

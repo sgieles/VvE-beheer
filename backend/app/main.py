@@ -71,6 +71,7 @@ def _seed_demo_data_if_needed():
     from app.models.appartement import Appartement
     from app.models.financial import MJOPUpload, MJOPItem, ReserveFondsEntry, ContributionPlan
     from app.models.user import User
+    from app.core.security import get_password_hash
     from decimal import Decimal
     from datetime import date as dt_date
 
@@ -79,8 +80,7 @@ def _seed_demo_data_if_needed():
         if db.query(VvE).filter(VvE.name == "Kinderdijkstraat 57-63").first():
             return
 
-        admin = db.query(User).first()
-
+        # VvE aanmaken
         vve = VvE(
             name="Kinderdijkstraat 57-63",
             address="Kinderdijkstraat 57-63, 1079 DX Amsterdam",
@@ -90,6 +90,24 @@ def _seed_demo_data_if_needed():
         db.add(vve)
         db.flush()
 
+        # Vaste demo-gebruiker aanmaken (of bestaande admin koppelen)
+        demo_user = db.query(User).filter(User.username == "beheerder").first()
+        if not demo_user:
+            demo_user = User(
+                vve_id=vve.id,
+                username="beheerder",
+                email="beheerder@kinderdijkstraat.nl",
+                full_name="Demo Beheerder",
+                hashed_password=get_password_hash("vvebeheer123"),
+                role="platform_admin",
+            )
+            db.add(demo_user)
+            db.flush()
+        else:
+            demo_user.vve_id = vve.id
+
+        # Eventuele env-var admin ook koppelen
+        admin = db.query(User).filter(User.username != "beheerder").first()
         if admin:
             admin.vve_id = vve.id
 
@@ -130,7 +148,7 @@ def _seed_demo_data_if_needed():
             original_filename="MJOP 2021-19.pdf",
             stored_filename="seed_mjop_2021-19.pdf",
             status="active",
-            uploaded_by_id=admin.id if admin else 1,
+            uploaded_by_id=demo_user.id,
         )
         db.add(mjop)
         db.flush()

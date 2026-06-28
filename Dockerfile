@@ -16,8 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY --from=frontend-build /frontend/dist ./static
 
-ENV DATABASE_URL=sqlite:////data/vve.db
-ENV UPLOAD_DIR=/data/uploads
+ENV UPLOAD_DIR=/app/uploads
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

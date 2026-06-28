@@ -14,3 +14,4 @@ python-dotenv
 httpx
 aiofiles
 msal
+psycopg2-binary

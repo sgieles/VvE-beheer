@@ -6,8 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import text
 from app.database import engine, Base, SessionLocal
 from app.routers import auth, users, financial, meetings
+from app.routers import appartementen
 import app.models  # noqa: F401
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
@@ -51,9 +53,22 @@ def _seed_admin_if_needed():
         db.close()
 
 
+def _run_migrations():
+    """Voeg nieuwe kolommen toe aan bestaande tabellen zonder Alembic."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE vves ADD COLUMN IF NOT EXISTS share_denominator INTEGER DEFAULT 1"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
     _seed_admin_if_needed()
     yield
 
@@ -77,6 +92,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(financial.router)
 app.include_router(meetings.router)
+app.include_router(appartementen.router)
 
 
 @app.get("/api/health")

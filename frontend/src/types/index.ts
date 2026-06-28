@@ -7,6 +7,18 @@ export interface VvE {
   address?: string
   kvk_number?: string
   contribution_frequency: ContributionFrequency
+  share_denominator: number
+  is_active: boolean
+  created_at: string
+}
+
+export interface Appartement {
+  id: number
+  vve_id: number
+  naam: string
+  nummer?: string
+  eigenaar_naam?: string
+  aandeel: string
   is_active: boolean
   created_at: string
 }
@@ -89,10 +101,21 @@ export interface ScenarioResult {
   [key: string]: unknown
 }
 
+export interface BijdragePerAppartement {
+  id: number
+  naam: string
+  nummer?: string
+  eigenaar_naam?: string
+  aandeel: number
+  bijdrage_per_periode: number
+}
+
 export interface FinancialDashboard {
   current_reservefonds_balance: number
   contribution_frequency: ContributionFrequency
   current_contribution_per_period: number
+  share_denominator: number
+  bijdrage_per_eenheid: number | null
   total_planned_costs_next_5_years: number
   total_planned_costs_next_10_years: number
   projected_balance_by_year: Array<{
@@ -103,7 +126,9 @@ export interface FinancialDashboard {
     shortfall: number
   }>
   shortfalls: Array<{ year: number; shortfall: number }>
+  vroege_waarschuwing: { jaar: number; verwacht_tekort: number } | null
   scenarios: ScenarioResult[]
+  bijdrage_per_appartement: BijdragePerAppartement[]
 }
 
 export interface Meeting {

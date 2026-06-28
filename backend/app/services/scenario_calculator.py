@@ -33,8 +33,8 @@ class FinancialInput:
     mjop_items: list[MJOPItemInput]
     current_year: int
     current_quarter: int
-    # Leden met aandeel > 0
     member_aandelen: list[Decimal]
+    inflatie_percentage: Decimal = Decimal("0")
 
 
 def _periods_per_year(frequency: str) -> int:
@@ -58,7 +58,13 @@ def _build_yearly_cashflow(inp: FinancialInput) -> list[dict]:
     balance = inp.current_balance
 
     for year in range(inp.current_year, max_year + 1):
-        costs = costs_by_year.get(year, Decimal(0))
+        raw_costs = costs_by_year.get(year, Decimal(0))
+        if inp.inflatie_percentage > 0:
+            years_from_now = year - inp.current_year
+            factor = Decimal(str((1 + float(inp.inflatie_percentage) / 100) ** years_from_now))
+            costs = raw_costs * factor
+        else:
+            costs = raw_costs
         balance += annual_contribution - costs
         result.append({
             "year": year,
@@ -240,12 +246,21 @@ def calculate_all_scenarios(inp: FinancialInput) -> dict:
     cashflow = _build_yearly_cashflow(inp)
     shortfalls = [r for r in cashflow if r["shortfall"] > 0]
 
-    periods = _periods_per_year(inp.contribution_frequency)
     total_aandeel = sum(inp.member_aandelen) or Decimal(1)
 
     now_year = inp.current_year
     costs_5 = sum(i.planned_amount for i in inp.mjop_items if now_year <= i.planned_year <= now_year + 5)
     costs_10 = sum(i.planned_amount for i in inp.mjop_items if now_year <= i.planned_year <= now_year + 10)
+
+    # Vroege waarschuwing: saldo negatief binnen 2 jaar
+    vroege_waarschuwing = None
+    for row in cashflow:
+        if row["year"] <= now_year + 2 and row["balance"] < 0:
+            vroege_waarschuwing = {
+                "jaar": int(row["year"]),
+                "verwacht_tekort": float(abs(row["balance"])),
+            }
+            break
 
     scenarios = []
     if shortfalls:
@@ -269,5 +284,6 @@ def calculate_all_scenarios(inp: FinancialInput) -> dict:
             {k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()}
             for row in shortfalls
         ],
+        "vroege_waarschuwing": vroege_waarschuwing,
         "scenarios": scenarios,
     }

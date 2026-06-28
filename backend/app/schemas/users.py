@@ -8,6 +8,7 @@ class VvEBase(BaseModel):
     address: str | None = None
     kvk_number: str | None = None
     contribution_frequency: str = "monthly"
+    share_denominator: int = 1
 
 
 class VvECreate(VvEBase):

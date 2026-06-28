@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import api from '@/services/api'
 import type { User, VvE } from '@/types'
 import {
-  LayoutDashboard, Users, TrendingUp, CalendarDays, LogOut,
+  LayoutDashboard, Home, TrendingUp, CalendarDays, LogOut,
   Building2, ChevronDown, ShieldCheck,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/members', label: 'Ledenbeheer', icon: Users },
+  { to: '/appartementen', label: 'Appartementen', icon: Home },
   { to: '/financial', label: 'Financieel', icon: TrendingUp },
   { to: '/meetings', label: 'Vergaderingen', icon: CalendarDays },
 ]

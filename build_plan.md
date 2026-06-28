@@ -84,17 +84,19 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 ### Fase 1 — MVP kern (bouwen)
 
 **Appartementen & bijdragen**
-- [ ] Verwijder huidig ledenmodel (login per lid) → vervang door eenvoudig `Appartement` model
-- [ ] Appartement: naam, nummer, eigenaar, aandeel (Decimal breuk)
-- [ ] Bijdrage-eenheid instellen: bedrag per 1/N aandeel + frequentie
-- [ ] Bijdrage-overzicht per appartement op dashboard
+- [x] `Appartement` model: naam, nummer, eigenaar, aandeel (Decimal)
+- [x] VvE `share_denominator`: bijdrage per 1/N aandeel-eenheid instellen
+- [x] Bijdrage per appartement berekenen op basis van aandeel (proportioneel)
+- [x] Bijdrage-overzicht per appartement op dashboard
 - [ ] Historisch bijdrageplan (meerdere periodes)
 
 **Dashboard & grafiek**
+- [x] KPI-blokken: saldo nu, kosten 5/10 jaar
+- [x] Vroegtijdige waarschuwing op dashboard (tekort binnen 2 jaar) — suggestie D ✅
+- [x] Inflatie-/indexatiecorrectie via query-parameter `?inflatie=X` — suggestie A ✅
 - [ ] Tijdsgranulariteit instelbaar: per jaar / kwartaal / maand
 - [ ] Jaar-filter: kijkperiode instellen (5 / 10 / 20 jaar of aangepast)
 - [ ] Gestapeld staafdiagram: bijdragen (groen) vs. kosten (rood) per periode
-- [ ] KPI-blokken: saldo nu, saldo over 5/10 jaar, totale geplande kosten
 - [ ] Tekortanalyse: lijst van periodes met tekort + bedrag
 
 **Slimme planning**
@@ -105,7 +107,8 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 
 **MJOP verbeteringen**
 - [ ] Categorieën per post (dak, gevel, installaties, lift, kozijnen, overig)
-- [ ] Groepeerweergave per categorie met subtotalen
+- [ ] Groepeerweergave per categorie met subtotalen — suggestie E (taartdiagram kosten per categorie)
+- [ ] Actueel vs. begroot: werkelijke kosten invullen bij afgeronde posten — suggestie C
 - [ ] Bulk-bewerking: meerdere posten tegelijk verschuiven
 
 **Simulatie**
@@ -123,24 +126,24 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 
 ### Fase 3 — Nice to have (uit MVP-definitie)
 
+- [ ] PDF-rapport exporteren (forecast, scenario's, bijdrageoverzicht) — suggestie B
+- [ ] Bijdrage-aanpassing wizard (stap-voor-stap doorrekening nieuwe bijdrage) — suggestie F
 - [ ] Microsoft Teams integratie (vergadering aanmaken, leden uitnodigen)
 - [ ] Vergaderbeheer (agenda, notulen uploaden)
 - [ ] Offertes workflow (offerte koppelen aan MJOP-post, goedkeuren)
 
 ---
 
-## Voorgestelde uitbreidingen — goedkeuring vereist
+## Uitbreidingen — status
 
-De onderstaande functies zijn **niet ingepland** en worden alleen gebouwd na jouw expliciete akkoord:
-
-| # | Functie | Waarde | Complexiteit |
-|---|---------|--------|--------------|
-| A | **Inflatie-/indexatiecorrectie** — MJOP-kosten automatisch verhogen met X% per jaar | Realistischere prognose over 10-20 jaar | Laag |
-| B | **PDF-rapport exporteren** — 1-klik export van forecast, scenario's en bijdrageoverzicht | Handig voor vergadering presenteren | Middel |
-| C | **Actueel vs. begroot** — werkelijke kosten invullen bij afgeronde posten, historisch saldo corrigeren | Betrouwbaardere data over tijd | Laag |
-| D | **Vroegtijdige waarschuwing** — badge/melding als reservefonds binnen 12 maanden negatief dreigt te worden | Proactief bijsturen zonder de grafiek te lezen | Laag |
-| E | **MJOP categorieën-dashboard** — taartdiagram en barchart van kosten per categorie (dak, gevel, etc.) | Snel inzicht in waar het geld naartoe gaat | Laag |
-| F | **Bijdrage-aanpassing wizard** — stap-voor-stap doorrekening van een nieuwe bijdrage-eenheid, met impact per appartement | Transparantie naar eigenaren | Middel |
+| # | Functie | Status |
+|---|---------|--------|
+| A | **Inflatie-/indexatiecorrectie** | ✅ Gebouwd — query param `?inflatie=X` op dashboard-endpoint |
+| B | **PDF-rapport exporteren** | 📋 Backlog Fase 3 |
+| C | **Actueel vs. begroot** | 📋 Backlog Fase 1 (MJOP-module) |
+| D | **Vroegtijdige waarschuwing** | ✅ Gebouwd — rode banner op dashboard bij tekort binnen 2 jaar |
+| E | **MJOP categorieën-dashboard** | 📋 Backlog Fase 1 (MJOP-module) |
+| F | **Bijdrage-aanpassing wizard** | 📋 Backlog Fase 3 |
 
 ---
 

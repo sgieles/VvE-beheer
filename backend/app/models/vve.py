@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Enum
+from sqlalchemy import String, DateTime, Enum, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -15,12 +15,14 @@ class VvE(Base):
         Enum("monthly", "quarterly", name="contribution_frequency_enum"),
         default="monthly",
     )
+    share_denominator: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     users: Mapped[list["User"]] = relationship(back_populates="vve")  # noqa: F821
+    appartementen: Mapped[list["Appartement"]] = relationship(back_populates="vve")  # noqa: F821
     mjop_uploads: Mapped[list["MJOPUpload"]] = relationship(back_populates="vve")  # noqa: F821
     meetings: Mapped[list["Meeting"]] = relationship(back_populates="vve")  # noqa: F821
     contribution_plans: Mapped[list["ContributionPlan"]] = relationship(back_populates="vve")  # noqa: F821

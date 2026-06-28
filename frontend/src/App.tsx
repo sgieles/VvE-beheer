@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/authStore'
 import Layout from '@/components/layout/Layout'
 import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
+import AppartementsPage from '@/pages/AppartementsPage'
 import MembersPage from '@/pages/MembersPage'
 import FinancialPage from '@/pages/FinancialPage'
 import MeetingsPage from '@/pages/MeetingsPage'
@@ -27,6 +28,7 @@ export default function App() {
           }
         >
           <Route index element={<DashboardPage />} />
+          <Route path="appartementen" element={<AppartementsPage />} />
           <Route path="members" element={<MembersPage />} />
           <Route path="financial" element={<FinancialPage />} />
           <Route path="meetings" element={<MeetingsPage />} />

@@ -2,7 +2,7 @@ import os
 import shutil
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.database import get_db, SessionLocal
 from app.models.user import User
@@ -273,9 +273,15 @@ def create_contribution_plan(
 # --- Dashboard / Scenarios ---
 
 @router.get("/dashboard")
-def get_financial_dashboard(vve_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_financial_dashboard(
+    vve_id: int,
+    inflatie: float = Query(default=0.0, ge=0.0, le=20.0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     _check_vve_access(vve_id, current_user, db)
     from app.models.vve import VvE
+    from app.models.appartement import Appartement as AppartementModel
 
     vve = db.query(VvE).filter(VvE.id == vve_id).first()
     if not vve:
@@ -312,12 +318,33 @@ def get_financial_dashboard(vve_id: int, current_user: User = Depends(get_curren
             for i in db_items
         ]
 
-    # Leden met aandeel
-    from app.models.user import User as UserModel
-    members = db.query(UserModel).filter(
-        UserModel.vve_id == vve_id, UserModel.aandeel.isnot(None), UserModel.is_active == True
-    ).all()
-    aandelen = [m.aandeel for m in members]
+    # Appartementen met aandeel
+    appartementen = db.query(AppartementModel).filter(
+        AppartementModel.vve_id == vve_id, AppartementModel.is_active == True
+    ).order_by(AppartementModel.nummer, AppartementModel.naam).all()
+    aandelen = [a.aandeel for a in appartementen]
+    totaal_aandeel = sum(aandelen) if aandelen else Decimal(0)
+
+    # Bijdrage per appartement
+    share_denominator = vve.share_denominator or 1
+    bijdrage_per_eenheid = (
+        float(contribution / share_denominator)
+        if share_denominator > 1 and contribution > 0
+        else None
+    )
+    bijdrage_per_appartement = [
+        {
+            "id": a.id,
+            "naam": a.naam,
+            "nummer": a.nummer,
+            "eigenaar_naam": a.eigenaar_naam,
+            "aandeel": float(a.aandeel),
+            "bijdrage_per_periode": float(
+                a.aandeel / totaal_aandeel * contribution if totaal_aandeel > 0 else Decimal(0)
+            ),
+        }
+        for a in appartementen
+    ]
 
     inp = FinancialInput(
         current_balance=balance,
@@ -327,6 +354,11 @@ def get_financial_dashboard(vve_id: int, current_user: User = Depends(get_curren
         current_year=today.year,
         current_quarter=(today.month - 1) // 3 + 1,
         member_aandelen=aandelen,
+        inflatie_percentage=Decimal(str(inflatie)),
     )
 
-    return calculate_all_scenarios(inp)
+    result = calculate_all_scenarios(inp)
+    result["share_denominator"] = share_denominator
+    result["bijdrage_per_eenheid"] = bijdrage_per_eenheid
+    result["bijdrage_per_appartement"] = bijdrage_per_appartement
+    return result

@@ -29,6 +29,12 @@ frontend/.vite/
 # Claude settings (local overrides)
 .claude/settings.local.json
 
+# Gevoelige bestanden (lokaal gebruik)
+INLOGGEGEVENS.md
+
+# Upload bestanden (runtime data, niet in repo)
+backend/uploads/
+
 # OS
 .DS_Store
 Thumbs.db

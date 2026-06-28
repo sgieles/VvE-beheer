@@ -8,6 +8,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./vve_beheer.db"
 
+    # Superuser voor productie (ingesteld via env / .env)
+    ADMIN_USERNAME: str = ""
+    ADMIN_PASSWORD: str = ""
+
     AZURE_CLIENT_ID: str = ""
     AZURE_CLIENT_SECRET: str = ""
     AZURE_TENANT_ID: str = ""

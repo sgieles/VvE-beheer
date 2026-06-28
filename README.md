@@ -1,89 +1,118 @@
-# VvE Beheer Platform — MVP
+# VvE Financieel Beheer
 
-## Vereisten
+> Financieel planningsinstrument voor Verenigingen van Eigenaren — met een blik op de toekomst.
 
-- **Python 3.11+** voor de backend
-- **Node.js 18+** voor de frontend
+**Live:** https://vve-beheer-8lda.onrender.com
 
 ---
 
-## Backend opstarten
+## Wat doet de app?
+
+VvE Financieel Beheer geeft een VvE-beheerder inzicht in toekomstige onderhoudskosten en berekent of de maandelijkse bijdragen van eigenaren voldoende zijn om die kosten te dekken. De nadruk ligt op financiële planning en transparantie.
+
+### Kernfunctionaliteit
+
+| Functie | Beschrijving |
+|---------|--------------|
+| **MJOP beheer** | Upload een Excel/PDF-bestand of voer posten handmatig in per jaar, kwartaal en bedrag |
+| **Dekkingsanalyse** | Berekent automatisch of het reservefonds toereikend is, jaar voor jaar |
+| **Slimme planning** | Herverdeelt jaarlijkse/kwartaalkosten efficiënt over periodes om tekorten te minimaliseren |
+| **Financieel dashboard** | Balans-grafiek per jaar/kwartaal/maand met tekortmarkering en KPI's |
+| **Scenario's** | Bij een tekort: bijdrage verhogen, kosten uitstellen, of eenmalige extra bijdrage |
+| **Bijdragesysteem** | Bijdrage per aandeel instellen (bv. €57,50 per 1/32 aandeel) per maand of kwartaal |
+| **Appartementen** | VvE aanmaken met appartementen, flexibele aandelen per appartement |
+| **Reservefonds** | Huidig saldo invoeren en mutaties bijhouden |
+
+---
+
+## Lokaal draaien
+
+### Vereisten
+- Python 3.11+
+- Node.js 18+
+
+### Backend
 
 ```bash
 cd backend
 
-# Virtuele omgeving aanmaken
+# Virtuele omgeving
 python -m venv venv
-venv\Scripts\activate          # Windows
-# of: source venv/bin/activate  # Mac/Linux
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Mac/Linux
 
-# Afhankelijkheden installeren
 pip install -r requirements.txt
 
-# Demo data aanmaken (eenmalig)
-python seed.py
+# Kopieer en vul in:
+copy .env.example .env       # Windows
+# cp .env.example .env       # Mac/Linux
 
-# Server starten
 uvicorn app.main:app --reload
 ```
 
-Backend draait op: http://localhost:8000
+Backend: http://localhost:8000  
 API docs: http://localhost:8000/docs
 
-Demo accounts:
-- `beheerder` / `beheerder123` — beheerder rol
-- `eigenaar1` / `eigenaar123` — eigenaar rol
-- `eigenaar2` / `eigenaar123` — eigenaar rol
+Bij eerste start wordt automatisch een admin-user aangemaakt op basis van `ADMIN_USERNAME` en `ADMIN_PASSWORD` uit `.env`.
 
----
-
-## Frontend opstarten
+### Frontend
 
 ```bash
 cd frontend
-
-# Afhankelijkheden installeren
 npm install
-
-# Development server starten
 npm run dev
 ```
 
-Frontend draait op: http://localhost:5173
-
----
-
-## Microsoft Teams integratie (optioneel)
-
-Vul in `backend/.env` de Azure-gegevens in:
-
-```
-AZURE_CLIENT_ID=<jouw-app-id>
-AZURE_CLIENT_SECRET=<jouw-secret>
-AZURE_TENANT_ID=<jouw-tenant-id>
-```
-
-Vereiste Graph API permissies: `OnlineMeetings.ReadWrite`, `Calendars.ReadWrite`
+Frontend: http://localhost:5173
 
 ---
 
 ## Architectuur
 
 ```
-VvE Beheer Platform
-├── backend/           FastAPI + SQLAlchemy + SQLite
+VvE Financieel Beheer
+├── backend/                  FastAPI + SQLAlchemy + PostgreSQL (prod) / SQLite (lokaal)
 │   ├── app/
-│   │   ├── models/    Database modellen (VvE, User, MJOP, Meeting)
-│   │   ├── routers/   API routes (auth, users, financial, meetings)
-│   │   ├── schemas/   Pydantic schemas (request/response)
-│   │   ├── services/  MJOP parser, scenario calculator, Teams
-│   │   └── core/      Config, security, JWT
-│   └── uploads/       Geüploade bestanden (MJOP, offertes, notulen)
-└── frontend/          React + TypeScript + Tailwind CSS
+│   │   ├── models/           VvE, Appartement, MJOPItem, ReserveFonds, Bijdrageplan
+│   │   ├── routers/          auth, appartementen, financial
+│   │   ├── schemas/          Pydantic request/response schemas
+│   │   ├── services/         MJOP parser (Excel/PDF), scenario calculator, smart planner
+│   │   └── core/             Config, JWT, dependencies
+│   └── uploads/              Geüploade MJOP-bestanden
+└── frontend/                 React + TypeScript + Tailwind CSS
     └── src/
-        ├── pages/     LoginPage, Dashboard, Members, Financial, Meetings
-        ├── components/ Layout, UI componenten
-        ├── services/  Axios API client
-        ├── store/     Zustand auth store
-        └── types/     TypeScript types
+        ├── pages/            Login, Dashboard, Appartementen, MJOP, Instellingen
+        ├── components/       Grafieken, modals, formulieren
+        ├── services/         Axios API client
+        ├── store/            Zustand auth store
+        └── types/            TypeScript types
 ```
+
+---
+
+## Deployment
+
+Gehost op [Render.com](https://render.com) via Docker:
+
+- **Backend + frontend**: één gecombineerde service (FastAPI serveert de React-build)
+- **Database**: Render PostgreSQL (gratis tier)
+- **CI/CD**: automatische deploy bij elke push naar `main`
+
+Configuratie staat in [`render.yaml`](render.yaml) en [`Dockerfile`](Dockerfile).
+
+### Environment variables (Render dashboard)
+
+| Variable | Omschrijving |
+|----------|--------------|
+| `ADMIN_USERNAME` | Gebruikersnaam voor inloggen |
+| `ADMIN_PASSWORD` | Wachtwoord voor inloggen |
+| `SECRET_KEY` | JWT signing key (auto-gegenereerd door Render) |
+| `DATABASE_URL` | PostgreSQL connection string (auto-gekoppeld door Render) |
+
+---
+
+## Nice to have (later)
+
+- Microsoft Teams integratie (vergaderingen aanmaken, uitnodigingen sturen)
+- Vergaderbeheer (agenda, notulen)
+- Offertes workflow (offertes koppelen aan MJOP-posten, goedkeuren)

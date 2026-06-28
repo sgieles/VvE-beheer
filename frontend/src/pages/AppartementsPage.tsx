@@ -9,6 +9,10 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
 }
 
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 interface AppartementForm {
   naam: string
   nummer: string
@@ -26,9 +30,16 @@ export default function AppartementsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Appartement | null>(null)
   const [form, setForm] = useState<AppartementForm>(emptyForm)
-  const [showDenominatorEdit, setShowDenominatorEdit] = useState(false)
-  const [denominatorInput, setDenominatorInput] = useState('')
   const [error, setError] = useState('')
+
+  // Denominator edit
+  const [showDenomEdit, setShowDenomEdit] = useState(false)
+  const [denomInput, setDenomInput] = useState('')
+
+  // Bijdrage per eenheid edit
+  const [showBijdrageEdit, setShowBijdrageEdit] = useState(false)
+  const [bijdrageInput, setBijdrageInput] = useState('')
+  const [bijdrageDatum, setBijdrageDatum] = useState(today())
 
   const { data: appartementen = [], isLoading } = useQuery<Appartement[]>({
     queryKey: ['appartementen', vveId],
@@ -92,7 +103,20 @@ export default function AppartementsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vves'] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
-      setShowDenominatorEdit(false)
+      setShowDenomEdit(false)
+    },
+  })
+
+  const createBijdrageMut = useMutation({
+    mutationFn: ({ amount, datum }: { amount: number; datum: string }) =>
+      api.post(`/vves/${vveId}/financial/contributions`, {
+        amount_per_period: amount,
+        effective_from: datum,
+        notes: `${(amount / shareDenominator).toFixed(2).replace('.', ',')} per 1/${shareDenominator} aandeel per ${periodeLabel}`,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      setShowBijdrageEdit(false)
     },
   })
 
@@ -109,7 +133,7 @@ export default function AppartementsPage() {
       naam: a.naam,
       nummer: a.nummer ?? '',
       eigenaar_naam: a.eigenaar_naam ?? '',
-      aandeel: a.aandeel,
+      aandeel: String(parseFloat(a.aandeel)),
     })
     setError('')
     setShowModal(true)
@@ -131,8 +155,18 @@ export default function AppartementsPage() {
     }
   }
 
-  const shareDenominator: number = (activeVve as VvE | undefined)?.share_denominator ?? 1
+  function openBijdrageEdit() {
+    const current = dashboard?.bijdrage_per_eenheid
+      ?? (dashboard?.current_contribution_per_period
+        ? dashboard.current_contribution_per_period / shareDenominator
+        : 0)
+    setBijdrageInput(current.toFixed(2))
+    setBijdrageDatum(today())
+    setShowBijdrageEdit(true)
+  }
 
+  const shareDenominator: number = (activeVve as VvE | undefined)?.share_denominator ?? 1
+  const periodeLabel = dashboard?.contribution_frequency === 'monthly' ? 'maand' : 'kwartaal'
   const totalAandeel = appartementen.reduce((s, a) => s + parseFloat(a.aandeel), 0)
 
   function getBijdrage(a: Appartement): number | null {
@@ -140,6 +174,8 @@ export default function AppartementsPage() {
     const entry = dashboard.bijdrage_per_appartement.find((b: { id: number }) => b.id === a.id)
     return entry?.bijdrage_per_periode ?? null
   }
+
+  const bijdrageTotal = parseFloat(bijdrageInput) * shareDenominator
 
   return (
     <div className="p-8">
@@ -157,55 +193,104 @@ export default function AppartementsPage() {
         </button>
       </div>
 
-      {/* Aandeel-instellingen */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-        <div className="flex items-center justify-between">
+      {/* Instellingen */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 space-y-4">
+        {/* Bijdrage per eenheid */}
+        <div className="flex items-start justify-between">
           <div>
-            <p className="font-medium text-gray-900">Aandeel-eenheid</p>
-            {shareDenominator > 1 ? (
+            <p className="font-medium text-gray-900">
+              Bijdrage per 1/{shareDenominator} aandeel
+            </p>
+            {dashboard?.bijdrage_per_eenheid != null ? (
               <p className="text-sm text-gray-500 mt-0.5">
-                Bijdrage wordt berekend als aandeel × €/1/{shareDenominator}&nbsp;deel
-                {dashboard?.bijdrage_per_eenheid != null && (
-                  <> — nu{' '}
-                    <span className="font-medium text-gray-700">
-                      {formatCurrency(dashboard.bijdrage_per_eenheid)} per 1/{shareDenominator} deel
-                    </span>
-                  </>
-                )}
+                {formatCurrency(dashboard.bijdrage_per_eenheid)} per 1/{shareDenominator} deel per {periodeLabel}
+                <span className="text-gray-400 ml-1">
+                  (totaal {formatCurrency(dashboard.current_contribution_per_period)}/{periodeLabel})
+                </span>
               </p>
             ) : (
-              <p className="text-sm text-gray-500 mt-0.5">
-                Bijdrage wordt proportioneel verdeeld op basis van aandeel
-              </p>
+              <p className="text-sm text-gray-400 mt-0.5">Nog niet ingesteld</p>
             )}
           </div>
-          {!showDenominatorEdit ? (
+          {!showBijdrageEdit ? (
             <button
-              onClick={() => { setDenominatorInput(String(shareDenominator)); setShowDenominatorEdit(true) }}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              onClick={openBijdrageEdit}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium shrink-0"
             >
               <Pencil size={14} className="inline mr-1" />
-              Instellen
+              Wijzigen
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <span className="text-sm text-gray-600">€</span>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={bijdrageInput}
+                onChange={(e) => setBijdrageInput(e.target.value)}
+                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+              />
+              <span className="text-sm text-gray-600">per 1/{shareDenominator} / {periodeLabel}</span>
+              {bijdrageInput && (
+                <span className="text-xs text-gray-400">= {formatCurrency(bijdrageTotal)}/totaal</span>
+              )}
+              <input
+                type="date"
+                value={bijdrageDatum}
+                onChange={(e) => setBijdrageDatum(e.target.value)}
+                className="px-2 py-1 border border-gray-300 rounded text-sm"
+              />
+              <button
+                onClick={() => createBijdrageMut.mutate({ amount: bijdrageTotal, datum: bijdrageDatum })}
+                disabled={!bijdrageInput || isNaN(bijdrageTotal) || bijdrageTotal <= 0}
+                className="text-sm bg-primary-600 text-white px-3 py-1 rounded font-medium disabled:opacity-40"
+              >
+                Opslaan
+              </button>
+              <button onClick={() => setShowBijdrageEdit(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <hr className="border-gray-100" />
+
+        {/* Noemer */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-gray-900">Aandeel-noemer</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Aandelen worden uitgedrukt als X/{shareDenominator}
+            </p>
+          </div>
+          {!showDenomEdit ? (
+            <button
+              onClick={() => { setDenomInput(String(shareDenominator)); setShowDenomEdit(true) }}
+              className="text-sm text-gray-500 hover:text-gray-700 font-medium shrink-0"
+            >
+              <Pencil size={14} className="inline mr-1" />
+              Aanpassen
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">1/</span>
+              <span className="text-sm text-gray-600">Noemer:</span>
               <input
                 type="number"
                 min={1}
                 max={1000}
-                value={denominatorInput}
-                onChange={(e) => setDenominatorInput(e.target.value)}
+                value={denomInput}
+                onChange={(e) => setDenomInput(e.target.value)}
                 className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
               />
-              <span className="text-sm text-gray-600">deel</span>
               <button
-                onClick={() => updateVveMut.mutate(Math.max(1, parseInt(denominatorInput) || 1))}
+                onClick={() => updateVveMut.mutate(Math.max(1, parseInt(denomInput) || 1))}
                 className="text-sm bg-primary-600 text-white px-3 py-1 rounded font-medium"
               >
                 Opslaan
               </button>
-              <button onClick={() => setShowDenominatorEdit(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowDenomEdit(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={16} />
               </button>
             </div>
@@ -230,10 +315,10 @@ export default function AppartementsPage() {
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Appartement</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Eigenaar</th>
                 <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">
-                  {shareDenominator > 1 ? `Aandelen (×1/${shareDenominator})` : 'Aandeel'}
+                  Aandeel
                 </th>
                 <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">
-                  Bijdrage per {dashboard?.contribution_frequency === 'monthly' ? 'maand' : 'kwartaal'}
+                  Bijdrage per {periodeLabel}
                 </th>
                 <th className="px-6 py-3" />
               </tr>
@@ -252,7 +337,7 @@ export default function AppartementsPage() {
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm font-medium text-gray-900">
                         {shareDenominator > 1
-                          ? `${(aandeel * shareDenominator).toFixed(0)}/${shareDenominator}`
+                          ? `${aandeel.toFixed(0)}/${shareDenominator}`
                           : aandeel.toFixed(4)}
                       </span>
                       <span className="text-xs text-gray-400 ml-1">
@@ -290,7 +375,7 @@ export default function AppartementsPage() {
                   <td colSpan={2} className="px-6 py-3 text-sm font-medium text-gray-600">Totaal</td>
                   <td className="px-6 py-3 text-right text-sm font-medium text-gray-900">
                     {shareDenominator > 1
-                      ? `${(totalAandeel * shareDenominator).toFixed(0)}/${shareDenominator}`
+                      ? `${totalAandeel.toFixed(0)}/${shareDenominator}`
                       : totalAandeel.toFixed(4)}
                   </td>
                   <td className="px-6 py-3 text-right text-sm font-medium text-gray-900">
@@ -328,7 +413,7 @@ export default function AppartementsPage() {
                   value={form.naam}
                   onChange={(e) => setForm((f) => ({ ...f, naam: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Appartement A"
+                  placeholder="Kinderdijkstraat 57-H"
                 />
               </div>
               <div>
@@ -338,7 +423,7 @@ export default function AppartementsPage() {
                   value={form.nummer}
                   onChange={(e) => setForm((f) => ({ ...f, nummer: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="A01"
+                  placeholder="57-H"
                 />
               </div>
               <div>
@@ -353,7 +438,7 @@ export default function AppartementsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Aandeel{shareDenominator > 1 ? ` (aantal 1/${shareDenominator} eenheden)` : ''}
+                  Aandeel{shareDenominator > 1 ? ` (teller — noemer is ${shareDenominator})` : ''}
                 </label>
                 <input
                   type="number"
@@ -363,11 +448,14 @@ export default function AppartementsPage() {
                   value={form.aandeel}
                   onChange={(e) => setForm((f) => ({ ...f, aandeel: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder={shareDenominator > 1 ? `bijv. 2 (= 2/${shareDenominator})` : '0.5'}
+                  placeholder={shareDenominator > 1 ? '3' : '0.5'}
                 />
                 {shareDenominator > 1 && form.aandeel && (
                   <p className="text-xs text-gray-400 mt-1">
                     = {parseFloat(form.aandeel) || 0}/{shareDenominator} aandeel
+                    {dashboard?.bijdrage_per_eenheid != null && (
+                      <> — bijdrage: {formatCurrency((parseFloat(form.aandeel) || 0) * dashboard.bijdrage_per_eenheid)}/{periodeLabel}</>
+                    )}
                   </p>
                 )}
               </div>

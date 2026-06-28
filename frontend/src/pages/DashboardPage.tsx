@@ -125,7 +125,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-3.5 text-sm text-gray-600">{a.eigenaar_naam ?? '—'}</td>
                     <td className="px-6 py-3.5 text-right text-sm text-gray-700">
                       {dashboard.share_denominator > 1
-                        ? `${(a.aandeel * dashboard.share_denominator).toFixed(0)}/${dashboard.share_denominator}`
+                        ? `${a.aandeel.toFixed(0)}/${dashboard.share_denominator}`
                         : a.aandeel.toFixed(4)}
                       <span className="text-xs text-gray-400 ml-1">
                         ({totalAandeel > 0 ? ((a.aandeel / totalAandeel) * 100).toFixed(1) : '0'}%)

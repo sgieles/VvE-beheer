@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type {
   FinancialDashboard, BalanceRow, QuarterRow,
@@ -10,7 +10,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
-import { TrendingUp, TrendingDown, AlertTriangle, AlertOctagon, Home, CheckCircle, Clock, Zap } from 'lucide-react'
+import { TrendingUp, TrendingDown, AlertTriangle, AlertOctagon, Home, CheckCircle, Clock, Zap, Plus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 function formatEur(v: number) {
@@ -23,15 +23,22 @@ function formatEurFull(v: number) {
 type YearRange = 5 | 10 | 20 | 'alles'
 type Granularity = 'jaar' | 'kwartaal'
 
-type ChartRow = { label: string; costs: number; contributions: number; balance: number; isShortfall: boolean }
+type SimulatiePost = { id: string; description: string; year: number; amount: number }
+type AdjRow = (BalanceRow | QuarterRow) & { adjustedBalance: number }
+type ChartRow = {
+  label: string; costs: number; contributions: number; balance: number
+  isShortfall: boolean; adjustedBalance: number; isAdjustedShortfall: boolean
+}
 
-function toChartRows(rows: (BalanceRow | QuarterRow)[], useLabel: boolean): ChartRow[] {
+function toChartRows(rows: AdjRow[], useLabel: boolean): ChartRow[] {
   return rows.map((row) => ({
     label: useLabel ? (row as QuarterRow).label : String(row.year),
     costs: Math.round(row.costs),
     contributions: Math.round(row.contributions),
     balance: Math.round(row.balance),
     isShortfall: row.balance < 0,
+    adjustedBalance: Math.round(row.adjustedBalance),
+    isAdjustedShortfall: row.adjustedBalance < 0,
   }))
 }
 
@@ -41,6 +48,11 @@ export default function DashboardPage() {
   const [yearRange, setYearRange] = useState<YearRange>(10)
   const [inflatie, setInflatie] = useState(0)
   const [granularity, setGranularity] = useState<Granularity>('jaar')
+  const [simulatiePosts, setSimulatiePosts] = useState<SimulatiePost[]>([])
+  const [showSimForm, setShowSimForm] = useState(false)
+  const [simForm, setSimForm] = useState({ description: '', year: new Date().getFullYear(), amount: '' })
+  const [savingSimulatie, setSavingSimulatie] = useState(false)
+  const qc = useQueryClient()
 
   const { data: dashboard } = useQuery<FinancialDashboard>({
     queryKey: ['dashboard', vveId, inflatie],
@@ -49,11 +61,49 @@ export default function DashboardPage() {
     enabled: !!vveId,
   })
 
+  // Simulatie: aangepaste cashflow (cumulatief saldo verlaagd per simulatiejaar)
+  const simCostByYear: Record<number, number> = {}
+  for (const p of simulatiePosts) simCostByYear[p.year] = (simCostByYear[p.year] ?? 0) + p.amount
+
+  const adjYearly: AdjRow[] = (() => {
+    let cum = 0
+    return (dashboard?.projected_balance_by_year ?? []).map((row) => {
+      cum += simCostByYear[row.year] ?? 0
+      return { ...row, adjustedBalance: row.balance - cum }
+    })
+  })()
+
+  const adjQuarterly: AdjRow[] = (() => {
+    const seen = new Set<number>()
+    let cum = 0
+    return (dashboard?.projected_balance_by_quarter ?? []).map((row) => {
+      if (!seen.has(row.year)) { seen.add(row.year); cum += simCostByYear[row.year] ?? 0 }
+      return { ...row, adjustedBalance: row.balance - cum }
+    })
+  })()
+
+  async function handleSaveSimulatie() {
+    setSavingSimulatie(true)
+    try {
+      for (const post of simulatiePosts) {
+        await api.post(`/vves/${vveId}/financial/mjop/items`, {
+          description: post.description,
+          planned_year: post.year,
+          planned_amount: post.amount,
+        })
+      }
+      setSimulatiePosts([])
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+    } finally {
+      setSavingSimulatie(false)
+    }
+  }
+
   const hasShortfalls = (dashboard?.shortfalls?.length ?? 0) > 0
   const periodeLabel = dashboard?.contribution_frequency === 'monthly' ? 'maand' : 'kwartaal'
   const allChartData: ChartRow[] = granularity === 'kwartaal'
-    ? toChartRows(dashboard?.projected_balance_by_quarter ?? [], true)
-    : toChartRows(dashboard?.projected_balance_by_year ?? [], false)
+    ? toChartRows(adjQuarterly, true)
+    : toChartRows(adjYearly, false)
 
   const chartData = yearRange === 'alles'
     ? allChartData
@@ -153,7 +203,15 @@ export default function DashboardPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
           {/* Header met filters */}
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <h2 className="text-base font-semibold text-gray-900">Prognose reservefonds</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-semibold text-gray-900">Prognose reservefonds</h2>
+              <button
+                onClick={() => setShowSimForm(true)}
+                className="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-300 hover:border-orange-400 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <Plus size={12} /> Simuleer extra kost
+              </button>
+            </div>
             <div className="flex items-center gap-4 flex-wrap">
               {/* Granulariteit toggle */}
               <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
@@ -252,6 +310,23 @@ export default function DashboardPage() {
                   )
                 }}
               />
+
+              {/* Gesimuleerd saldo (oranje stippellijn) */}
+              {simulatiePosts.length > 0 && (
+                <Line
+                  type="monotone"
+                  dataKey="adjustedBalance"
+                  name="Saldo (simulatie)"
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  strokeDasharray="6 3"
+                  dot={(props) => {
+                    const { cx, cy, payload } = props
+                    if (!payload.isAdjustedShortfall) return <g key={payload.label} />
+                    return <circle key={payload.label} cx={cx} cy={cy} r={5} fill="#ef4444" strokeWidth={0} />
+                  }}
+                />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
 
@@ -261,6 +336,84 @@ export default function DashboardPage() {
               MJOP-kosten verhoogd met {inflatie}% inflatie per jaar
             </p>
           )}
+        </div>
+      )}
+
+      {/* Simulatie-banner */}
+      {simulatiePosts.length > 0 && (
+        <SimulatieBanner
+          posts={simulatiePosts}
+          adjYearly={adjYearly}
+          origShortfallYears={new Set((dashboard?.shortfalls ?? []).map((s) => s.year))}
+          onRemove={(id) => setSimulatiePosts((prev) => prev.filter((p) => p.id !== id))}
+          onSaveAll={handleSaveSimulatie}
+          saving={savingSimulatie}
+        />
+      )}
+
+      {/* Simulatie-formulier modal */}
+      {showSimForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-base font-semibold mb-4">Simuleer extra kost</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving *</label>
+                <input
+                  type="text"
+                  value={simForm.description}
+                  onChange={(e) => setSimForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  placeholder="bijv. Nieuw dak huis 73"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jaar *</label>
+                <input
+                  type="number"
+                  value={simForm.year}
+                  onChange={(e) => setSimForm((f) => ({ ...f, year: parseInt(e.target.value) || f.year }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  min={new Date().getFullYear()}
+                  max={2060}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bedrag (€) *</label>
+                <input
+                  type="number"
+                  value={simForm.amount}
+                  onChange={(e) => setSimForm((f) => ({ ...f, amount: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  placeholder="bijv. 8500"
+                  min={0}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setShowSimForm(false)}
+                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50"
+              >
+                Annuleren
+              </button>
+              <button
+                disabled={!simForm.description || !simForm.amount || parseFloat(simForm.amount) <= 0}
+                onClick={() => {
+                  setSimulatiePosts((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), description: simForm.description, year: simForm.year, amount: parseFloat(simForm.amount) },
+                  ])
+                  setSimForm({ description: '', year: new Date().getFullYear(), amount: '' })
+                  setShowSimForm(false)
+                }}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                Toevoegen
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -450,6 +603,65 @@ export default function DashboardPage() {
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+function SimulatieBanner({
+  posts, adjYearly, origShortfallYears, onRemove, onSaveAll, saving,
+}: {
+  posts: SimulatiePost[]
+  adjYearly: AdjRow[]
+  origShortfallYears: Set<number>
+  onRemove: (id: string) => void
+  onSaveAll: () => void
+  saving: boolean
+}) {
+  const newShortfalls = adjYearly.filter((r) => r.adjustedBalance < 0 && r.balance >= 0)
+  const worsenedYears = adjYearly.filter(
+    (r) => r.adjustedBalance < 0 && r.balance < 0 && r.adjustedBalance < r.balance && origShortfallYears.has(r.year)
+  )
+  const totalSim = posts.reduce((s, p) => s + p.amount, 0)
+
+  return (
+    <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 mb-8">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <p className="font-semibold text-orange-900 text-sm mb-2">
+            Simulatie actief — {posts.length} tijdelijke post{posts.length === 1 ? '' : 'en'} ({formatEur(totalSim)} totaal)
+          </p>
+          <ul className="space-y-1.5 mb-3">
+            {posts.map((p) => (
+              <li key={p.id} className="flex items-center gap-2 text-sm text-orange-800">
+                <span className="flex-1">{p.description} · {p.year} · {formatEur(p.amount)}</span>
+                <button onClick={() => onRemove(p.id)} className="text-orange-400 hover:text-orange-600">
+                  <X size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {newShortfalls.length > 0 && (
+            <p className="text-xs text-red-700 font-medium">
+              Nieuwe tekorten in: {newShortfalls.map((r) => r.year).join(', ')}
+            </p>
+          )}
+          {worsenedYears.length > 0 && newShortfalls.length === 0 && (
+            <p className="text-xs text-orange-700">
+              Bestaande tekorten worden vergroot in: {worsenedYears.map((r) => r.year).join(', ')}
+            </p>
+          )}
+          {newShortfalls.length === 0 && worsenedYears.length === 0 && (
+            <p className="text-xs text-green-700 font-medium">Geen nieuwe tekorten door deze simulatie</p>
+          )}
+        </div>
+        <button
+          onClick={onSaveAll}
+          disabled={saving}
+          className="shrink-0 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium px-3 py-2 rounded-lg disabled:opacity-50"
+        >
+          {saving ? 'Opslaan…' : 'Opslaan als MJOP-post'}
+        </button>
+      </div>
     </div>
   )
 }

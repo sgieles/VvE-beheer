@@ -85,6 +85,15 @@ export interface ReserveFondsEntry {
   created_at: string
 }
 
+export interface ReserveFondsCombinedEntry {
+  id: number | null
+  entry_date: string
+  amount: number
+  description: string
+  entry_type: 'manual' | 'contribution'
+  running_balance: number
+}
+
 export interface ContributionPlan {
   id: number
   vve_id: number

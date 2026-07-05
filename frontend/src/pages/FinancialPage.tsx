@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
-import type { MJOPItem, ContributionPlan, ReserveFondsEntry } from '@/types'
+import type { MJOPItem, ContributionPlan, ReserveFondsCombinedEntry } from '@/types'
 import { Tooltip, PieChart, Pie, Cell } from 'recharts'
 import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
@@ -105,6 +105,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
   const fileRef = useRef<HTMLInputElement>(null)
   const [editItem, setEditItem] = useState<MJOPItem | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const { data: items = [], isLoading } = useQuery<MJOPItem[]>({
     queryKey: ['mjop-items', vveId],
@@ -116,16 +117,17 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setUploadError(null)
     const form = new FormData()
     form.append('file', file)
     try {
       await api.post(`/vves/${vveId}/financial/mjop/upload`, form)
-      setTimeout(() => {
-        qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
-        qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
-        setUploading(false)
-      }, 2000)
-    } catch {
+      qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setUploadError(detail ?? 'Upload mislukt. Controleer het bestand en probeer opnieuw.')
+    } finally {
       setUploading(false)
     }
     e.target.value = ''
@@ -334,6 +336,13 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
               Annuleren
             </button>
           </div>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 text-sm text-red-700 flex items-start gap-2">
+          <span className="shrink-0 mt-0.5">⚠</span>
+          <span>{uploadError}</span>
         </div>
       )}
 
@@ -699,9 +708,9 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
-  const { data: entries = [] } = useQuery<ReserveFondsEntry[]>({
+  const { data: entries = [] } = useQuery<ReserveFondsCombinedEntry[]>({
     queryKey: ['reservefonds', vveId],
-    queryFn: () => api.get(`/vves/${vveId}/financial/reservefonds`).then((r) => r.data),
+    queryFn: () => api.get(`/vves/${vveId}/financial/reservefonds/combined`).then((r) => r.data),
     enabled: !!vveId,
   })
 
@@ -742,7 +751,7 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
     setUploadParsed(null)
   }
 
-  const balance = entries.reduce((s, e) => s + parseFloat(e.amount), 0)
+  const balance = entries.length > 0 ? entries[entries.length - 1].running_balance : 0
 
   return (
     <div className="space-y-6">
@@ -750,6 +759,11 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
         <div>
           <p className="text-sm text-gray-500">Huidig saldo reservefonds</p>
           <p className={`text-3xl font-bold mt-1 ${balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatEur(balance)}</p>
+          {entries.filter(e => e.entry_type === 'contribution').length > 0 && (
+            <p className="text-xs text-gray-400 mt-1">
+              incl. {entries.filter(e => e.entry_type === 'contribution').length} bijdrage-betalingen
+            </p>
+          )}
         </div>
         {isBeheerder && (
           <div className="flex gap-2">
@@ -770,24 +784,39 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {['Datum', 'Omschrijving', 'Bedrag'].map((h) => (
-                <th key={h} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">{h}</th>
+              {['Datum', 'Omschrijving', 'Bedrag', 'Saldo'].map((h) => (
+                <th key={h} className={`text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3 ${h === 'Bedrag' || h === 'Saldo' ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {entries.length === 0 && (
-              <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-400 text-sm">Nog geen mutaties ingevoerd</td></tr>
+              <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 text-sm">Nog geen mutaties ingevoerd</td></tr>
             )}
-            {entries.map((e) => (
-              <tr key={e.id} className="hover:bg-gray-50">
-                <td className="px-6 py-3 text-sm text-gray-600">{format(new Date(e.entry_date), 'd MMM yyyy', { locale: nl })}</td>
-                <td className="px-6 py-3 text-sm text-gray-900">{e.description ?? '—'}</td>
-                <td className={`px-6 py-3 text-sm font-medium ${parseFloat(e.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {parseFloat(e.amount) >= 0 ? '+' : ''}{formatEur(e.amount)}
-                </td>
-              </tr>
-            ))}
+            {entries.map((e, i) => {
+              const isContrib = e.entry_type === 'contribution'
+              return (
+                <tr key={`${e.entry_type}-${e.id ?? i}`} className={isContrib ? 'bg-emerald-50/40 hover:bg-emerald-50' : 'hover:bg-gray-50'}>
+                  <td className="px-6 py-2.5 text-sm text-gray-500 whitespace-nowrap">
+                    {format(new Date(e.entry_date), 'd MMM yyyy', { locale: nl })}
+                  </td>
+                  <td className="px-6 py-2.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      {isContrib && (
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">Bijdrage</span>
+                      )}
+                      <span className={isContrib ? 'text-gray-500' : 'text-gray-900'}>{e.description || '—'}</span>
+                    </div>
+                  </td>
+                  <td className={`px-6 py-2.5 text-sm font-medium text-right ${e.amount >= 0 ? (isContrib ? 'text-emerald-600' : 'text-green-600') : 'text-red-600'}`}>
+                    {e.amount >= 0 ? '+' : ''}{formatEur(e.amount)}
+                  </td>
+                  <td className={`px-6 py-2.5 text-sm text-right font-medium ${e.running_balance < 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                    {formatEur(e.running_balance)}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

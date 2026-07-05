@@ -2,9 +2,9 @@ import os
 import shutil
 from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
 from sqlalchemy.orm import Session
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.models.user import User
 from app.models.financial import MJOPUpload, MJOPItem, Quote, ReserveFondsEntry, ContributionPlan
 from app.core.dependencies import get_current_user, get_current_beheerder, require_vve_access
@@ -62,42 +62,9 @@ def _check_vve_access(vve_id: int, user: User, db: Session):
 
 # --- MJOP Upload ---
 
-def _process_mjop(file_path: str, upload_id: int):
-    """Achtergrondtaak: parse het MJOP bestand en sla items op."""
-    db = SessionLocal()
-    try:
-        upload = db.query(MJOPUpload).filter(MJOPUpload.id == upload_id).first()
-        if not upload:
-            return
-        try:
-            items = parse_mjop_file(file_path)
-            for item_data in items:
-                item = MJOPItem(
-                    vve_id=upload.vve_id,
-                    mjop_upload_id=upload.id,
-                    **item_data,
-                )
-                db.add(item)
-            upload.status = "active"
-            db.query(MJOPUpload).filter(
-                MJOPUpload.vve_id == upload.vve_id,
-                MJOPUpload.id != upload.id,
-                MJOPUpload.status == "active",
-            ).update({"status": "archived"})
-            db.commit()
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).error("MJOP parse fout: %s", exc, exc_info=True)
-            upload.status = "failed"
-            db.commit()
-    finally:
-        db.close()
-
-
 @router.post("/mjop/upload", response_model=MJOPUploadOut, status_code=status.HTTP_201_CREATED)
 async def upload_mjop(
     vve_id: int,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_beheerder),
     db: Session = Depends(get_db),
@@ -126,7 +93,30 @@ async def upload_mjop(
     db.commit()
     db.refresh(upload)
 
-    background_tasks.add_task(_process_mjop, file_path, upload.id)
+    # Synchroon parsen zodat fouten direct als HTTP-fout terugkomen
+    try:
+        items = parse_mjop_file(file_path)
+        if not items:
+            upload.status = "failed"
+            db.commit()
+            raise HTTPException(status_code=422, detail="Geen posten gevonden in het bestand. Controleer of het bestand een MJOP bevat met jaar, omschrijving en bedrag.")
+        for item_data in items:
+            db.add(MJOPItem(vve_id=vve_id, mjop_upload_id=upload.id, **item_data))
+        upload.status = "active"
+        db.query(MJOPUpload).filter(
+            MJOPUpload.vve_id == vve_id,
+            MJOPUpload.id != upload.id,
+            MJOPUpload.status == "active",
+        ).update({"status": "archived"})
+        db.commit()
+        db.refresh(upload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        upload.status = "failed"
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Fout bij verwerken: {exc}")
+
     return upload
 
 
@@ -278,6 +268,89 @@ def add_reservefonds_entry(
     db.commit()
     db.refresh(entry)
     return entry
+
+
+@router.get("/reservefonds/combined")
+def list_reservefonds_combined(vve_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Geeft alle reservefonds-mutaties terug, inclusief berekende bijdrage-betalingen per periode."""
+    _check_vve_access(vve_id, current_user, db)
+    from app.models.vve import VvE
+
+    real_entries = (
+        db.query(ReserveFondsEntry)
+        .filter(ReserveFondsEntry.vve_id == vve_id)
+        .order_by(ReserveFondsEntry.entry_date)
+        .all()
+    )
+    plans = (
+        db.query(ContributionPlan)
+        .filter(ContributionPlan.vve_id == vve_id)
+        .order_by(ContributionPlan.effective_from)
+        .all()
+    )
+    vve = db.query(VvE).filter(VvE.id == vve_id).first()
+    frequency = vve.contribution_frequency if vve else "monthly"
+    today = date.today()
+
+    NL_MONTHS = ["", "januari", "februari", "maart", "april", "mei", "juni",
+                 "juli", "augustus", "september", "oktober", "november", "december"]
+
+    def _payment_dates(plan: ContributionPlan, after: date, until: date):
+        """Genereer (payment_date, beschrijving) voor alle betalingen van dit plan."""
+        results = []
+        if frequency == "monthly":
+            y, m = after.year, after.month
+            while True:
+                pd = date(y, m, 20)
+                if after < pd <= until:
+                    results.append((pd, f"Maandelijkse bijdrage {NL_MONTHS[pd.month]} {pd.year}"))
+                m += 1
+                if m > 12:
+                    y, m = y + 1, 1
+                if date(y, m, 1) > until:
+                    break
+        else:
+            for y in range(after.year, until.year + 1):
+                for m, q in ((1, 1), (4, 2), (7, 3), (10, 4)):
+                    pd = date(y, m, 20)
+                    if after < pd <= until:
+                        results.append((pd, f"Kwartaalbijdrage Q{q} {y}"))
+        return results
+
+    contribution_rows = []
+    if real_entries and plans:
+        first_entry_date = real_entries[0].entry_date
+        for plan in plans:
+            start = max(plan.effective_from, first_entry_date)
+            end = min(plan.effective_to if plan.effective_to else today, today)
+            for pd, desc in _payment_dates(plan, start, end):
+                contribution_rows.append({
+                    "id": None,
+                    "entry_date": pd.isoformat(),
+                    "amount": float(plan.amount_per_period),
+                    "description": desc,
+                    "entry_type": "contribution",
+                })
+
+    manual_rows = [
+        {
+            "id": e.id,
+            "entry_date": e.entry_date.isoformat(),
+            "amount": float(e.amount),
+            "description": e.description or "",
+            "entry_type": "manual",
+        }
+        for e in real_entries
+    ]
+
+    all_rows = sorted(manual_rows + contribution_rows, key=lambda r: (r["entry_date"], 0 if r["entry_type"] == "manual" else 1))
+
+    running = 0.0
+    for row in all_rows:
+        running += row["amount"]
+        row["running_balance"] = round(running, 2)
+
+    return all_rows
 
 
 @router.post("/balanssheet/upload")

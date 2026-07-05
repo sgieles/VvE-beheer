@@ -129,7 +129,27 @@ def _build_quarterly_cashflow(inp: FinancialInput) -> list[dict]:
 
 
 def calculate_shortfalls(inp: FinancialInput) -> list[dict]:
-    """Geeft jaren terug waarop het fonds negatief wordt."""
+    """
+    Geeft jaren terug waarop het fonds negatief wordt.
+    Wanneer items een kwartaal hebben wordt kwartaal-nauwkeurig gedetecteerd:
+    een jaar telt als tekortjaar zodra ENIG kwartaal negatief is.
+    """
+    has_quarterly = any(item.planned_quarter for item in inp.mjop_items)
+
+    if has_quarterly:
+        quarterly = _build_quarterly_cashflow(inp)
+        worst_by_year: dict[int, Decimal] = {}
+        for row in quarterly:
+            if row["balance"] < 0:
+                year = row["year"]
+                worst_by_year[year] = max(
+                    worst_by_year.get(year, Decimal(0)), abs(row["balance"])
+                )
+        return [
+            {"year": y, "shortfall": sf, "balance": -sf}
+            for y, sf in sorted(worst_by_year.items())
+        ]
+
     cashflow = _build_yearly_cashflow(inp)
     return [row for row in cashflow if row["balance"] < 0]
 
@@ -275,9 +295,9 @@ def scenario_one_time_levy(inp: FinancialInput) -> dict:
     """
     Bereken een eenmalige bijdrage per eigenaar om het tekort te dichten.
     """
-    cashflow = _build_yearly_cashflow(inp)
+    shortfalls = calculate_shortfalls(inp)
     # Diepste tekort bepaalt de vereiste eenmalige bijdrage
-    max_shortfall = max((r["shortfall"] for r in cashflow), default=Decimal(0))
+    max_shortfall = max((r["shortfall"] for r in shortfalls), default=Decimal(0))
     total_aandeel = sum(inp.member_aandelen) or Decimal(1)
     levy_per_full_aandeel = max_shortfall / total_aandeel
 
@@ -328,7 +348,7 @@ def smart_planning(inp: FinancialInput, max_shift_quarters: int = 8) -> dict:
     - Posten ZONDER kwartaal: verschuift per jaar (tot max_shift_quarters // 4 jaar).
     """
     original_cashflow = _build_yearly_cashflow(inp)
-    original_shortfalls = [r for r in original_cashflow if r["shortfall"] > 0]
+    original_shortfalls = calculate_shortfalls(inp)
 
     if not original_shortfalls:
         return {
@@ -344,8 +364,7 @@ def smart_planning(inp: FinancialInput, max_shift_quarters: int = 8) -> dict:
     shifted_ids: set[int] = set()
 
     for _ in range(len(inp.mjop_items)):
-        cashflow = _build_yearly_cashflow(_make_inp(inp, modified_items))
-        shortfall_map = {int(r["year"]): r["shortfall"] for r in cashflow if r["shortfall"] > 0}
+        shortfall_map = {int(r["year"]): r["shortfall"] for r in calculate_shortfalls(_make_inp(inp, modified_items))}
         if not shortfall_map:
             break
 
@@ -380,9 +399,9 @@ def smart_planning(inp: FinancialInput, max_shift_quarters: int = 8) -> dict:
                     ) if i.id == candidate.id else i
                     for i in modified_items
                 ]
-                test_cf = _build_yearly_cashflow(_make_inp(inp, test_items))
+                test_shortfalls = calculate_shortfalls(_make_inp(inp, test_items))
                 new_shortfall = next(
-                    (r["shortfall"] for r in test_cf if r["year"] == candidate.planned_year),
+                    (r["shortfall"] for r in test_shortfalls if r["year"] == candidate.planned_year),
                     Decimal(0),
                 )
                 if new_shortfall < shortfall_map[candidate.planned_year]:
@@ -406,8 +425,9 @@ def smart_planning(inp: FinancialInput, max_shift_quarters: int = 8) -> dict:
         if not made_shift:
             break
 
-    final_cf = _build_yearly_cashflow(_make_inp(inp, modified_items))
-    remaining = [r for r in final_cf if r["shortfall"] > 0]
+    final_inp = _make_inp(inp, modified_items)
+    final_cf = _build_yearly_cashflow(final_inp)
+    remaining = calculate_shortfalls(final_inp)
 
     return {
         "proposed_shifts": proposed_shifts,
@@ -421,7 +441,7 @@ def smart_planning(inp: FinancialInput, max_shift_quarters: int = 8) -> dict:
 def calculate_all_scenarios(inp: FinancialInput) -> dict:
     """Bereken alle drie scenario's en het volledige dashboard."""
     cashflow = _build_yearly_cashflow(inp)
-    shortfalls = [r for r in cashflow if r["shortfall"] > 0]
+    shortfalls = calculate_shortfalls(inp)
 
     total_aandeel = sum(inp.member_aandelen) or Decimal(1)
 
@@ -429,13 +449,13 @@ def calculate_all_scenarios(inp: FinancialInput) -> dict:
     costs_5 = sum(i.planned_amount for i in inp.mjop_items if now_year <= i.planned_year <= now_year + 5)
     costs_10 = sum(i.planned_amount for i in inp.mjop_items if now_year <= i.planned_year <= now_year + 10)
 
-    # Vroege waarschuwing: saldo negatief binnen 2 jaar
+    # Vroege waarschuwing: saldo negatief binnen 2 jaar (kwartaal-nauwkeurig)
     vroege_waarschuwing = None
-    for row in cashflow:
-        if row["year"] <= now_year + 2 and row["balance"] < 0:
+    for row in shortfalls:
+        if row["year"] <= now_year + 2:
             vroege_waarschuwing = {
                 "jaar": int(row["year"]),
-                "verwacht_tekort": float(abs(row["balance"])),
+                "verwacht_tekort": float(row["shortfall"]),
             }
             break
 

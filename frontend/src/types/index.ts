@@ -95,11 +95,46 @@ export interface ContributionPlan {
   created_at: string
 }
 
-export interface ScenarioResult {
-  scenario_type: 'contribution_increase' | 'defer_activity' | 'one_time_levy'
+export interface ScenarioDeferral {
+  item_id: number
   description: string
-  [key: string]: unknown
+  original_year: number
+  proposed_year: number
+  amount: number
 }
+
+export interface ScenarioContributionIncrease {
+  scenario_type: 'contribution_increase'
+  description: string
+  new_contribution_per_period: number
+  increase_per_period: number
+  increase_per_period_per_unit_aandeel: number
+  impact_per_period_per_aandeel: number
+  total_shortfall: number
+  coverage_start_year: number
+}
+
+export interface ScenarioDeferActivity {
+  scenario_type: 'defer_activity'
+  description: string
+  suggested_deferrals: ScenarioDeferral[]
+  impact_per_period_per_aandeel: number
+  total_shortfall: number
+  coverage_start_year: number
+}
+
+export interface ScenarioOneTimeLevy {
+  scenario_type: 'one_time_levy'
+  description: string
+  total_levy: number
+  levy_per_full_aandeel: number
+  per_member_breakdown: { aandeel: number; levy: number }[]
+  impact_per_period_per_aandeel: number
+  total_shortfall: number
+  coverage_start_year: number
+}
+
+export type ScenarioResult = ScenarioContributionIncrease | ScenarioDeferActivity | ScenarioOneTimeLevy
 
 export interface BijdragePerAppartement {
   id: number

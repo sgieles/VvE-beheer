@@ -16,6 +16,7 @@ from app.schemas.financial import (
     ContributionPlanCreate, ContributionPlanOut,
 )
 from app.services.mjop_parser import parse_mjop_file
+from app.services.balanssheet_parser import parse_balanssheet
 from app.services.scenario_calculator import (
     FinancialInput, MJOPItemInput, calculate_all_scenarios
 )
@@ -277,6 +278,40 @@ def add_reservefonds_entry(
     db.commit()
     db.refresh(entry)
     return entry
+
+
+@router.post("/balanssheet/upload")
+async def upload_balanssheet(
+    vve_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_beheerder),
+    db: Session = Depends(get_db),
+):
+    """Upload een bankbalans (PDF/Excel) en extraheer het saldo en de datum."""
+    _check_vve_access(vve_id, current_user, db)
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in (".pdf", ".xlsx", ".xls", ".xlsm"):
+        raise HTTPException(status_code=400, detail="Alleen PDF of Excel bestanden zijn toegestaan.")
+
+    upload_dir = "uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+    tmp_path = os.path.join(upload_dir, f"balanssheet_{vve_id}{ext}")
+
+    with open(tmp_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    try:
+        result = parse_balanssheet(tmp_path)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Bestand kon niet worden verwerkt: {e}")
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    return result
 
 
 # --- Bijdrageplan ---

@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { FinancialDashboard, BalanceRow, QuarterRow } from '@/types'
+import type {
+  FinancialDashboard, BalanceRow, QuarterRow,
+  ScenarioResult, ScenarioContributionIncrease, ScenarioDeferActivity, ScenarioOneTimeLevy,
+} from '@/types'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
-import { TrendingUp, TrendingDown, AlertTriangle, AlertOctagon, Home } from 'lucide-react'
+import { TrendingUp, TrendingDown, AlertTriangle, AlertOctagon, Home, CheckCircle, Clock, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 function formatEur(v: number) {
@@ -132,6 +135,19 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Gezond-indicator — alleen tonen als er MJOP-data is maar geen tekorten */}
+      {chartData.length > 0 && !hasShortfalls && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center gap-3">
+          <CheckCircle className="text-green-500 shrink-0" size={20} />
+          <div>
+            <p className="font-medium text-green-800">Reservefonds is financieel gezond</p>
+            <p className="text-sm text-green-700 mt-0.5">
+              Geen tekorten verwacht op basis van het huidige MJOP en bijdrageplan.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Balans-grafiek */}
       {chartData.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
@@ -191,7 +207,7 @@ export default function DashboardPage() {
           <ResponsiveContainer width="100%" height={320}>
             <ComposedChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis
                 tickFormatter={(v) => `€${Math.abs(v / 1000).toFixed(0)}k${v < 0 ? '-' : ''}`}
                 tick={{ fontSize: 11 }}
@@ -199,7 +215,7 @@ export default function DashboardPage() {
               />
               <Tooltip
                 formatter={(v: number, name: string) => [formatEur(v), name]}
-                labelFormatter={(l) => `Jaar ${l}`}
+                labelFormatter={(l) => String(l)}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
@@ -290,6 +306,28 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Financiële gezondheidsanalyse — scenario's */}
+      {hasShortfalls && (dashboard?.scenarios?.length ?? 0) > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b border-gray-100 bg-red-50/60">
+            <h2 className="text-base font-semibold text-gray-900">Financiële gezondheidsanalyse</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Drie mogelijke aanpakken om tekorten te voorkomen
+            </p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {dashboard!.scenarios.map((s, i) => (
+              <ScenarioCard
+                key={i}
+                scenario={s}
+                periodeLabel={periodeLabel}
+                shareDenominator={dashboard!.share_denominator}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bijdrage per appartement */}
       {dashboard && dashboard.bijdrage_per_appartement.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-8">
@@ -363,6 +401,92 @@ export default function DashboardPage() {
       )}
     </div>
   )
+}
+
+function ScenarioCard({ scenario, periodeLabel, shareDenominator }: {
+  scenario: ScenarioResult
+  periodeLabel: string
+  shareDenominator: number
+}) {
+  if (scenario.scenario_type === 'contribution_increase') {
+    const s = scenario as ScenarioContributionIncrease
+    return (
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-1.5 bg-blue-100 rounded-lg">
+            <TrendingUp size={15} className="text-blue-600" />
+          </div>
+          <h3 className="text-sm font-semibold text-blue-900">Bijdrage verhogen</h3>
+        </div>
+        <p className="text-xl font-bold text-blue-900">
+          +{formatEurFull(s.increase_per_period_per_unit_aandeel)}
+        </p>
+        <p className="text-xs text-blue-700 mb-2">
+          per 1/{shareDenominator} deel per {periodeLabel}
+        </p>
+        <p className="text-xs text-blue-600">
+          Nieuw totaal: {formatEurFull(s.new_contribution_per_period)} per {periodeLabel}
+        </p>
+      </div>
+    )
+  }
+
+  if (scenario.scenario_type === 'defer_activity') {
+    const s = scenario as ScenarioDeferActivity
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-1.5 bg-amber-100 rounded-lg">
+            <Clock size={15} className="text-amber-600" />
+          </div>
+          <h3 className="text-sm font-semibold text-amber-900">Kosten uitstellen</h3>
+        </div>
+        <p className="text-xl font-bold text-amber-900">
+          {s.suggested_deferrals.length} post{s.suggested_deferrals.length === 1 ? '' : 'en'}
+        </p>
+        <p className="text-xs text-amber-700 mb-2">1 jaar verschuiven</p>
+        <ul className="space-y-1">
+          {s.suggested_deferrals.slice(0, 3).map((d) => (
+            <li key={d.item_id} className="text-xs text-amber-800">
+              {d.description.length > 28 ? d.description.slice(0, 25) + '…' : d.description}
+              {': '}{d.original_year} → {d.proposed_year}
+            </li>
+          ))}
+          {s.suggested_deferrals.length > 3 && (
+            <li className="text-xs text-amber-600">en {s.suggested_deferrals.length - 3} meer…</li>
+          )}
+        </ul>
+      </div>
+    )
+  }
+
+  if (scenario.scenario_type === 'one_time_levy') {
+    const s = scenario as ScenarioOneTimeLevy
+    const uniqueAandelen = [...new Set(s.per_member_breakdown.map((m) => m.aandeel))].sort((a, b) => b - a)
+    return (
+      <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-1.5 bg-purple-100 rounded-lg">
+            <Zap size={15} className="text-purple-600" />
+          </div>
+          <h3 className="text-sm font-semibold text-purple-900">Eenmalige bijdrage</h3>
+        </div>
+        <p className="text-xl font-bold text-purple-900">{formatEur(s.total_levy)}</p>
+        <p className="text-xs text-purple-700 mb-2">
+          {formatEur(s.levy_per_full_aandeel)} per aandeel-eenheid
+        </p>
+        <ul className="space-y-0.5">
+          {uniqueAandelen.slice(0, 4).map((aandeel) => (
+            <li key={aandeel} className="text-xs text-purple-800">
+              {aandeel}/{shareDenominator} aandeel: {formatEur(aandeel * s.levy_per_full_aandeel)}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  return null
 }
 
 function KpiCard({ label, value, sublabel, icon, color }: {

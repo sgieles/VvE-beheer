@@ -98,7 +98,7 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [x] Bijdrage-overzicht per appartement op dashboard
 - [ ] Historisch bijdrageplan (meerdere periodes)
 - [x] Automatische bijschrijving op de 20ste: bij berekening huidig saldo worden bijdragen sinds laatste entry automatisch meegeteld (geen DB-entries, puur berekend)
-- [ ] Balanssheet upload: PDF/Excel bankbalans inlezen → saldo + datum extraheren → reservefonds berekenen als saldo + bijdragen vanaf balansdatum t/m vandaag
+- [x] Balanssheet upload: PDF/Excel bankbalans inlezen → saldo + datum extraheren → reservefonds berekenen als saldo + bijdragen vanaf balansdatum t/m vandaag
 
 **Dashboard & grafiek**
 - [x] KPI-blokken: saldo nu, kosten 5/10 jaar
@@ -126,10 +126,10 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [ ] Ad-hoc simulatiepost toevoegen (oranje in grafiek)
 - [ ] Heranalyse na toevoegen ad-hoc post: systeem toont of post haalbaar is, welke begrote posten erdoor in gevaar komen, of het fonds tekort schiet
 - [ ] Opslaan als definitieve post of verwijderen
-- [ ] Financiële gezondheidsanalyse prominent op dashboard: welke posten vormen risico, drie scenario's uitgewerkt met concrete bedragen per appartement
-- [ ] Scenario 1 — kosten verschuiven: algoritme stelt optimaal verschuifmoment voor (minste impact op fonds)
-- [ ] Scenario 2 — eenmalige bijdrage: berekening per appartement op basis van aandeel
-- [ ] Scenario 3 — bijdrage verhogen: nieuw maandbedrag per 1/N aandeel om tekorten te dekken
+- [x] Financiële gezondheidsanalyse prominent op dashboard: drie scenario's (bijdrage verhogen, uitstellen, eenmalig) met concrete bedragen per appartement; groen-indicator als geen tekorten
+- [x] Scenario 1 — kosten verschuiven: algoritme stelt optimaal verschuifmoment voor (minste impact op fonds)
+- [x] Scenario 2 — eenmalige bijdrage: berekening per appartement op basis van aandeel
+- [x] Scenario 3 — bijdrage verhogen: nieuw maandbedrag per 1/N aandeel om tekorten te dekken
 
 ### Fase 2 — Kwaliteit & UX
 

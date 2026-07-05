@@ -399,6 +399,15 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ entry_date: '', amount: '', description: '' })
 
+  // Balanssheet upload state
+  const [showUpload, setShowUpload] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState<'select' | 'confirm'>('select')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadParsed, setUploadParsed] = useState<{ amount: number | null; entry_date: string | null; confidence: string } | null>(null)
+  const [uploadConfirm, setUploadConfirm] = useState({ entry_date: '', amount: '', description: 'Openingssaldo (bankbalans)' })
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   const { data: entries = [] } = useQuery<ReserveFondsEntry[]>({
     queryKey: ['reservefonds', vveId],
     queryFn: () => api.get(`/vves/${vveId}/financial/reservefonds`).then((r) => r.data),
@@ -410,6 +419,38 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['reservefonds', vveId] }); qc.invalidateQueries({ queryKey: ['dashboard', vveId] }); setShowForm(false) },
   })
 
+  async function handleBalansUpload() {
+    if (!uploadFile) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', uploadFile)
+      const res = await api.post(`/vves/${vveId}/financial/balanssheet/upload`, fd)
+      setUploadParsed(res.data)
+      setUploadConfirm({
+        entry_date: res.data.entry_date ?? '',
+        amount: res.data.amount != null ? String(Math.round(res.data.amount)) : '',
+        description: 'Openingssaldo (bankbalans)',
+      })
+      setUploadPhase('confirm')
+    } catch {
+      setUploadError('Het bestand kon niet worden verwerkt. Controleer het bestandstype en probeer opnieuw.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleBalansConfirm() {
+    await api.post(`/vves/${vveId}/financial/reservefonds`, uploadConfirm)
+    qc.invalidateQueries({ queryKey: ['reservefonds', vveId] })
+    qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+    setShowUpload(false)
+    setUploadPhase('select')
+    setUploadFile(null)
+    setUploadParsed(null)
+  }
+
   const balance = entries.reduce((s, e) => s + parseFloat(e.amount), 0)
 
   return (
@@ -420,9 +461,17 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
           <p className={`text-3xl font-bold mt-1 ${balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatEur(balance)}</p>
         </div>
         {isBeheerder && (
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
-            <Plus size={16} /> Mutatie toevoegen
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowUpload(true); setUploadPhase('select'); setUploadFile(null); setUploadError(null) }}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium px-4 py-2.5 rounded-lg"
+            >
+              <Upload size={15} /> Bankbalans importeren
+            </button>
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
+              <Plus size={16} /> Mutatie toevoegen
+            </button>
+          </div>
         )}
       </div>
 
@@ -451,6 +500,82 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
           </tbody>
         </table>
       </div>
+
+      {showUpload && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold mb-1">Bankbalans importeren</h2>
+            {uploadPhase === 'select' ? (
+              <>
+                <p className="text-sm text-gray-500 mb-4">
+                  Upload een PDF of Excel met het actuele banksaldo. Het systeem probeert de datum en het saldo automatisch te herkennen.
+                </p>
+                {uploadError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">{uploadError}</div>
+                )}
+                <label htmlFor="balans-file" className="block border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary-400 transition-colors">
+                  <Upload size={28} className="mx-auto text-gray-300 mb-2" />
+                  <p className="text-sm text-gray-600 font-medium">
+                    {uploadFile ? uploadFile.name : 'Klik om een bestand te selecteren'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">PDF of Excel</p>
+                  <input id="balans-file" type="file" accept=".pdf,.xlsx,.xls" className="hidden"
+                    onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setUploadError(null) }} />
+                </label>
+                <div className="flex gap-3 mt-4">
+                  <button onClick={() => setShowUpload(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Annuleren</button>
+                  <button onClick={handleBalansUpload} disabled={!uploadFile || uploading}
+                    className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium disabled:opacity-50">
+                    {uploading ? 'Analyseren…' : 'Analyseren'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {uploadParsed?.confidence === 'low' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-700">
+                    Saldo en/of datum konden niet automatisch worden herkend. Controleer de waarden voor u opslaat.
+                  </div>
+                )}
+                {uploadParsed?.confidence === 'high' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-xs text-green-700">
+                    Datum en saldo succesvol herkend. Controleer de waarden en sla op.
+                  </div>
+                )}
+                <div className="space-y-4 mt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Balansdatum *</label>
+                    <input type="date" value={uploadConfirm.entry_date}
+                      onChange={(e) => setUploadConfirm((f) => ({ ...f, entry_date: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Saldo (€) *</label>
+                    <input type="number" value={uploadConfirm.amount}
+                      onChange={(e) => setUploadConfirm((f) => ({ ...f, amount: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                      placeholder="bijv. 45000" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving</label>
+                    <input type="text" value={uploadConfirm.description}
+                      onChange={(e) => setUploadConfirm((f) => ({ ...f, description: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setUploadPhase('select')} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Terug</button>
+                  <button onClick={handleBalansConfirm}
+                    disabled={!uploadConfirm.entry_date || !uploadConfirm.amount}
+                    className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium disabled:opacity-50">
+                    Opslaan als mutatie
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

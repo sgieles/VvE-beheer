@@ -1,6 +1,6 @@
 import os
 import shutil
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -330,6 +330,15 @@ def create_contribution_plan(
     db: Session = Depends(get_db),
 ):
     _check_vve_access(vve_id, current_user, db)
+    # Sluit vorig actief plan automatisch af (effective_to = dag voor nieuwe ingangsdatum)
+    prev = db.query(ContributionPlan).filter(
+        ContributionPlan.vve_id == vve_id,
+        ContributionPlan.effective_to.is_(None),
+        ContributionPlan.effective_from < data.effective_from,
+    ).order_by(ContributionPlan.effective_from.desc()).first()
+    if prev:
+        prev.effective_to = data.effective_from - timedelta(days=1)
+        db.add(prev)
     plan = ContributionPlan(vve_id=vve_id, **data.model_dump())
     db.add(plan)
     db.commit()

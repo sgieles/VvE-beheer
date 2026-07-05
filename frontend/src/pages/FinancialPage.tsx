@@ -5,13 +5,33 @@ import api from '@/services/api'
 import type { FinancialDashboard, MJOPItem, ContributionPlan, ReserveFondsEntry } from '@/types'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  PieChart, Pie, Cell,
 } from 'recharts'
-import { Upload, Plus, Pencil, CheckCircle, AlertTriangle, TrendingUp, ArrowRight } from 'lucide-react'
+import { Upload, Plus, Pencil, AlertTriangle, TrendingUp, ArrowRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 
 function formatEur(v: number | string) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(v))
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  dak: '#4f46e5',
+  gevel: '#7c3aed',
+  kozijnen: '#0891b2',
+  schilderwerk: '#059669',
+  installaties: '#d97706',
+  lift: '#dc2626',
+  overig: '#6b7280',
+}
+
+const CATEGORIES = ['dak', 'gevel', 'kozijnen', 'schilderwerk', 'installaties', 'lift', 'overig']
+
+const STATUS_NL: Record<string, string> = {
+  planned: 'Gepland',
+  quoted: 'Offerte',
+  approved: 'Goedgekeurd',
+  completed: 'Afgerond',
 }
 
 const TABS = ['Dashboard', 'MJOP', 'Reservefonds', 'Bijdragen'] as const
@@ -241,8 +261,49 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
     completed: 'bg-gray-200 text-gray-500',
   }
 
+  // Kosten per categorie (alle items)
+  const costsByCategory = items.reduce<Record<string, number>>((acc, item) => {
+    const cat = item.category ?? 'overig'
+    acc[cat] = (acc[cat] ?? 0) + parseFloat(item.planned_amount)
+    return acc
+  }, {})
+  const pieData = Object.entries(costsByCategory)
+    .map(([name, value]) => ({ name, value, color: CATEGORY_COLORS[name] ?? '#6b7280' }))
+    .sort((a, b) => b.value - a.value)
+  const totalPie = pieData.reduce((s, d) => s + d.value, 0)
+
   return (
     <div className="space-y-6">
+      {/* Donut chart kosten per categorie */}
+      {items.length > 0 && pieData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Kosten per categorie (totaal gepland)</h3>
+          <div className="flex items-center gap-8">
+            <div className="shrink-0">
+              <PieChart width={160} height={160}>
+                <Pie data={pieData} cx={75} cy={75} innerRadius={42} outerRadius={72} dataKey="value" startAngle={90} endAngle={-270}>
+                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Tooltip formatter={(v: number) => [formatEur(v), '']} contentStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </div>
+            <div className="flex-1 space-y-2">
+              {pieData.map((d) => (
+                <div key={d.name} className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                  <span className="text-xs capitalize text-gray-700 w-24">{d.name}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full transition-all" style={{ width: `${(d.value / totalPie) * 100}%`, backgroundColor: d.color }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-900 w-20 text-right">{formatEur(d.value)}</span>
+                  <span className="text-xs text-gray-400 w-10 text-right">{((d.value / totalPie) * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isBeheerder && (
         <div className="flex gap-3">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.xlsm,.pdf" onChange={handleFileUpload} className="hidden" />
@@ -286,7 +347,13 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
               {yearItems.map((item) => (
                 <tr key={item.id} className={`hover:bg-gray-50 ${item.manually_adjusted ? 'bg-blue-50/30' : ''}`}>
                   <td className="px-6 py-3 text-sm text-gray-900">{item.description}</td>
-                  <td className="px-6 py-3 text-sm text-gray-500">{item.category ?? '—'}</td>
+                  <td className="px-6 py-3">
+                    {item.category ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${CATEGORY_COLORS[item.category] ?? '#6b7280'}18`, color: CATEGORY_COLORS[item.category] ?? '#6b7280' }}>
+                        {item.category}
+                      </span>
+                    ) : <span className="text-xs text-gray-400">—</span>}
+                  </td>
                   <td className="px-6 py-3 text-sm text-gray-500">{item.planned_quarter ? `Q${item.planned_quarter}` : 'Heel jaar'}</td>
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatEur(item.planned_amount)}</td>
                   <td className="px-6 py-3 text-sm">
@@ -298,7 +365,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
                   </td>
                   <td className="px-6 py-3">
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[item.status]}`}>
-                      {item.status}
+                      {STATUS_NL[item.status] ?? item.status}
                     </span>
                   </td>
                   <td className="px-6 py-3">
@@ -333,6 +400,8 @@ function MJOPItemEditModal({ item, onClose, onSave }: {
   const [quarter, setQuarter] = useState(item.planned_quarter?.toString() ?? '')
   const [amount, setAmount] = useState(item.planned_amount)
   const [actual, setActual] = useState(item.actual_amount ?? '')
+  const [category, setCategory] = useState(item.category ?? '')
+  const [status, setStatus] = useState(item.status)
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -371,6 +440,25 @@ function MJOPItemEditModal({ item, onClose, onSave }: {
                 placeholder="Leeg = niet ingevoerd" />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Categorie</label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none">
+                <option value="">— onbekend —</option>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value as MJOPItem['status'])}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none">
+                {Object.entries(STATUS_NL).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">
@@ -382,6 +470,8 @@ function MJOPItemEditModal({ item, onClose, onSave }: {
               planned_quarter: quarter ? parseInt(quarter) : undefined,
               planned_amount: amount as unknown as string,
               actual_amount: actual || undefined,
+              category: category || undefined,
+              status,
             })}
             className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium"
           >
@@ -650,16 +740,24 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
             {plans.length === 0 && (
               <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 text-sm">Nog geen bijdrageplan ingesteld</td></tr>
             )}
-            {plans.map((p) => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatEur(p.amount_per_period)}</td>
-                <td className="px-6 py-3 text-sm text-gray-600">{format(new Date(p.effective_from), 'd MMM yyyy', { locale: nl })}</td>
-                <td className="px-6 py-3 text-sm text-gray-600">
-                  {p.effective_to ? format(new Date(p.effective_to), 'd MMM yyyy', { locale: nl }) : <span className="text-green-600 font-medium flex items-center gap-1"><CheckCircle size={14} /> Huidig</span>}
-                </td>
-                <td className="px-6 py-3 text-sm text-gray-500">{p.notes ?? '—'}</td>
-              </tr>
-            ))}
+            {plans.map((p) => {
+              const isHuidig = !p.effective_to
+              return (
+                <tr key={p.id} className={isHuidig ? 'bg-green-50/40' : 'hover:bg-gray-50'}>
+                  <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                    {formatEur(p.amount_per_period)}
+                    {isHuidig && <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">actief</span>}
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{format(new Date(p.effective_from), 'd MMM yyyy', { locale: nl })}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">
+                    {p.effective_to
+                      ? format(new Date(p.effective_to), 'd MMM yyyy', { locale: nl })
+                      : <span className="text-green-600 font-medium">—</span>}
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-500">{p.notes ?? '—'}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

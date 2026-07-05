@@ -116,7 +116,7 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [ ] Limiet instellen: maximaal X jaar/kwartalen verschuiven
 
 **MJOP verbeteringen**
-- [x] PDF-parser twee-staps aanpak: Claude API (claude-haiku) leest PDF als document → ruwe JSON; Python valideert jaar/bedrag/categorie en flaggt twijfelaars; automatische fallback op heuristische regex als ANTHROPIC_API_KEY niet ingesteld is
+- [x] PDF-parser vijf-staps Python pipeline (geen externe API): Classifier detecteert tabelformaat (breed/lang), Extractor haalt cellen op via pdfplumber.extract_tables(), Normalizer leidt categorie af, Validator controleert plausibiliteit, tekst-fallback als geen tabellen gevonden
 - [ ] Categorieën per post (dak, gevel, installaties, lift, kozijnen, overig)
 - [ ] Groepeerweergave per categorie met subtotalen — suggestie E (taartdiagram kosten per categorie)
 - [ ] Actueel vs. begroot: werkelijke kosten invullen bij afgeronde posten — suggestie C

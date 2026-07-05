@@ -23,6 +23,7 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 
 **3. MJOP beheer**
 - Upload Excel/PDF → automatisch geparsed naar posten per jaar/kwartaal
+- PDF-parser via Claude API: PDF wordt als document naar Claude gestuurd, die gestructureerde MJOP-posten teruggeeft (betrouwbaarder dan heuristische regex-aanpak)
 - Handmatig posten toevoegen (omschrijving, categorie, jaar, kwartaal, bedrag)
 - Posten bewerken: datum verschuiven (jaar/kwartaal), bedrag corrigeren, verwijderen
 - Categorieën: dak, gevel, installaties, lift, kozijnen, etc.
@@ -30,12 +31,19 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 **4. Reservefonds**
 - Huidig saldo invoeren
 - Mutaties bijhouden (stortingen, onttrekkingen met datum en omschrijving)
+- Automatische maandelijkse bijschrijving: bijdragen worden op de 20ste van elke maand automatisch geboekt als positieve mutatie
+- Balanssheet upload: PDF/Excel upload van de bankbalans → systeem leest het saldo en de datum, berekent huidig reservefonds als: saldo op balansdatum + bijdragen van balansdatum tot vandaag
 
 **5. Financieel dashboard (hoofdscherm)**
-- Balans-grafiek met instelbare tijdsperiode (per jaar / kwartaal / maand)
+- KPI-blokken: huidig saldo, bijdrage per maand, kosten komend jaar, kosten komende 5 jaar
+- Grafiek reservefonds verloop: lijndiagram saldo (Y-as) over kwartalen (X-as), gecombineerd met staafdiagram bijdragen (groen) en kosten (rood)
 - Tekortjaren/-kwartalen rood gemarkeerd
-- KPI-blokken: huidig saldo, verwacht saldo over 5/10 jaar, totale geplande kosten
 - Bijdrage-overzicht per appartement (wat betaalt elk appartement per periode)
+- Financiële gezondheidsanalyse: welke MJOP-posten brengen het fonds in gevaar, en drie concrete interventie-scenario's:
+  1. Kosten verschuiven in de tijd — systeem stelt optimaal verschuifmoment voor
+  2. Eenmalige extra bijdrage — bedrag per appartement op basis van aandeel
+  3. Maandelijkse bijdrage verhogen — nieuw bedrag per 1/N aandeel
+- Ad-hoc kostenpost simuleren: voer een tijdelijke post in → analyse herberekent direct of de post haalbaar is, ten koste gaat van begrote posten, of niet gedekt kan worden; oranje markering in grafiek; optie om op te slaan of te verwijderen
 
 **6. Dekkingsanalyse + scenario's**
 - Automatische berekening: reservefonds + bijdragen − kosten per periode
@@ -89,6 +97,8 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [x] Bijdrage per appartement berekenen op basis van aandeel (proportioneel)
 - [x] Bijdrage-overzicht per appartement op dashboard
 - [ ] Historisch bijdrageplan (meerdere periodes)
+- [ ] Automatische bijschrijving op de 20ste: maandelijks een reservefonds-mutatie aanmaken op basis van het actieve bijdrageplan
+- [ ] Balanssheet upload: PDF/Excel bankbalans inlezen → saldo + datum extraheren → reservefonds berekenen als saldo + bijdragen vanaf balansdatum t/m vandaag
 
 **Dashboard & grafiek**
 - [x] KPI-blokken: saldo nu, kosten 5/10 jaar
@@ -106,15 +116,20 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [ ] Limiet instellen: maximaal X jaar/kwartalen verschuiven
 
 **MJOP verbeteringen**
+- [ ] PDF-parser vervangen door Claude API: PDF als document uploaden naar Claude, gestructureerde posten (jaar, omschrijving, bedrag, categorie) terugkrijgen als JSON — veel betrouwbaarder dan heuristische regex
 - [ ] Categorieën per post (dak, gevel, installaties, lift, kozijnen, overig)
 - [ ] Groepeerweergave per categorie met subtotalen — suggestie E (taartdiagram kosten per categorie)
 - [ ] Actueel vs. begroot: werkelijke kosten invullen bij afgeronde posten — suggestie C
 - [ ] Bulk-bewerking: meerdere posten tegelijk verschuiven
 
-**Simulatie**
+**Simulatie & gezondheidsanalyse**
 - [ ] Ad-hoc simulatiepost toevoegen (oranje in grafiek)
-- [ ] Simulatie vergelijken met basisplan
-- [ ] Opslaan of verwijderen van simulatiepost
+- [ ] Heranalyse na toevoegen ad-hoc post: systeem toont of post haalbaar is, welke begrote posten erdoor in gevaar komen, of het fonds tekort schiet
+- [ ] Opslaan als definitieve post of verwijderen
+- [ ] Financiële gezondheidsanalyse prominent op dashboard: welke posten vormen risico, drie scenario's uitgewerkt met concrete bedragen per appartement
+- [ ] Scenario 1 — kosten verschuiven: algoritme stelt optimaal verschuifmoment voor (minste impact op fonds)
+- [ ] Scenario 2 — eenmalige bijdrage: berekening per appartement op basis van aandeel
+- [ ] Scenario 3 — bijdrage verhogen: nieuw maandbedrag per 1/N aandeel om tekorten te dekken
 
 ### Fase 2 — Kwaliteit & UX
 

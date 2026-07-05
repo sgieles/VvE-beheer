@@ -532,63 +532,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Bijdrage per appartement */}
-      {dashboard && dashboard.bijdrage_per_appartement.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-base font-semibold text-gray-900">Bijdrage per appartement</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Per {periodeLabel}</p>
-          </div>
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Appartement</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Eigenaar</th>
-                <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">
-                  Aandeel
-                </th>
-                <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">
-                  Bijdrage per {periodeLabel}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {dashboard.bijdrage_per_appartement.map((a) => {
-                const totalAandeel = dashboard.bijdrage_per_appartement.reduce((s, x) => s + x.aandeel, 0)
-                return (
-                  <tr key={a.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-3.5">
-                      <p className="text-sm font-medium text-gray-900">{a.naam}</p>
-                      {a.nummer && <p className="text-xs text-gray-400">{a.nummer}</p>}
-                    </td>
-                    <td className="px-6 py-3.5 text-sm text-gray-600">{a.eigenaar_naam ?? '—'}</td>
-                    <td className="px-6 py-3.5 text-right text-sm text-gray-700">
-                      {dashboard.share_denominator > 1
-                        ? `${a.aandeel.toFixed(0)}/${dashboard.share_denominator}`
-                        : a.aandeel.toFixed(4)}
-                      <span className="text-xs text-gray-400 ml-1">
-                        ({totalAandeel > 0 ? ((a.aandeel / totalAandeel) * 100).toFixed(1) : '0'}%)
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-right text-sm font-medium text-gray-900">
-                      {formatEurFull(a.bijdrage_per_periode)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot className="bg-gray-50 border-t border-gray-200">
-              <tr>
-                <td colSpan={3} className="px-6 py-3 text-sm font-medium text-gray-600">Totaal</td>
-                <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
-                  {formatEurFull(dashboard.current_contribution_per_period)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
       {/* Lege staat */}
       {dashboard && dashboard.bijdrage_per_appartement.length === 0 && chartData.length === 0 && (
         <div className="bg-white border border-dashed border-gray-300 rounded-xl p-8 text-center">

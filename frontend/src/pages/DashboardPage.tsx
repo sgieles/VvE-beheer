@@ -306,16 +306,67 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Financiële gezondheidsanalyse — scenario's */}
+      {/* Financiële gezondheidsanalyse — risico-overzicht + scenario's */}
       {hasShortfalls && (dashboard?.scenarios?.length ?? 0) > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-gray-100 bg-red-50/60">
             <h2 className="text-base font-semibold text-gray-900">Financiële gezondheidsanalyse</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Drie mogelijke aanpakken om tekorten te voorkomen
+              Posten die het reservefonds in gevaar brengen en mogelijke aanpakken
             </p>
           </div>
-          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Risico-overzicht tabel */}
+          {(dashboard!.risico_items?.length ?? 0) > 0 && (
+            <div className="border-b border-gray-100">
+              <div className="px-6 pt-4 pb-2">
+                <h3 className="text-sm font-semibold text-gray-700">Risico-overzicht per post</h3>
+                <p className="text-xs text-gray-400 mt-0.5">MJOP-posten in jaren met een tekort, gesorteerd op bedrag</p>
+              </div>
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Post</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Jaar</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Bedrag</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Tekort dat jaar</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Risico</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {dashboard!.risico_items.map((item) => (
+                    <tr key={item.id} className={item.is_hoofdoorzaak ? 'bg-red-50/40' : ''}>
+                      <td className="px-6 py-3 text-sm text-gray-900">
+                        {item.description.length > 45 ? item.description.slice(0, 42) + '…' : item.description}
+                      </td>
+                      <td className="px-6 py-3 text-right text-sm text-gray-600">
+                        {item.planned_year}{item.planned_quarter ? ` Q${item.planned_quarter}` : ''}
+                      </td>
+                      <td className="px-6 py-3 text-right text-sm font-medium text-gray-900">
+                        {formatEur(item.planned_amount)}
+                      </td>
+                      <td className="px-6 py-3 text-right text-sm text-red-600">
+                        -{formatEur(item.tekort_in_jaar)}
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        {item.is_hoofdoorzaak ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Hoofdoorzaak</span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">Bijdragend</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Scenario-kaarten */}
+          <div className="px-6 pt-4 pb-2">
+            <h3 className="text-sm font-semibold text-gray-700">Mogelijke aanpakken</h3>
+          </div>
+          <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             {dashboard!.scenarios.map((s, i) => (
               <ScenarioCard
                 key={i}

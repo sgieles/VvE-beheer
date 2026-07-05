@@ -321,6 +321,25 @@ def calculate_all_scenarios(inp: FinancialInput) -> dict:
             scenario_one_time_levy(inp),
         ]
 
+    # Risico-items: MJOP-posten in tekortjaren, gesorteerd op bedrag (grootste eerst)
+    shortfall_years = {int(r["year"]): r["shortfall"] for r in shortfalls}
+    risico_items = []
+    for item in sorted(inp.mjop_items, key=lambda x: x.planned_amount, reverse=True):
+        if item.planned_year not in shortfall_years:
+            continue
+        tekort = shortfall_years[item.planned_year]
+        # Geeft aan of dit item meer dan de helft van het tekort in dat jaar veroorzaakt
+        is_hoofdoorzaak = item.planned_amount >= tekort * Decimal("0.5")
+        risico_items.append({
+            "id": item.id,
+            "description": item.description,
+            "planned_year": item.planned_year,
+            "planned_quarter": item.planned_quarter,
+            "planned_amount": float(item.planned_amount),
+            "tekort_in_jaar": float(tekort),
+            "is_hoofdoorzaak": is_hoofdoorzaak,
+        })
+
     quarterly_cashflow = _build_quarterly_cashflow(inp)
 
     def _floatify(rows: list[dict]) -> list[dict]:
@@ -337,4 +356,5 @@ def calculate_all_scenarios(inp: FinancialInput) -> dict:
         "shortfalls": _floatify(shortfalls),
         "vroege_waarschuwing": vroege_waarschuwing,
         "scenarios": scenarios,
+        "risico_items": risico_items,
     }

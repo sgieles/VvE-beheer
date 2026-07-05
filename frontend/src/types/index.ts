@@ -158,6 +158,16 @@ export interface QuarterRow extends BalanceRow {
   label: string
 }
 
+export interface RisicoItem {
+  id: number
+  description: string
+  planned_year: number
+  planned_quarter: number | null
+  planned_amount: number
+  tekort_in_jaar: number
+  is_hoofdoorzaak: boolean
+}
+
 export interface FinancialDashboard {
   current_reservefonds_balance: number
   contribution_frequency: ContributionFrequency
@@ -171,6 +181,7 @@ export interface FinancialDashboard {
   shortfalls: Array<{ year: number; shortfall: number }>
   vroege_waarschuwing: { jaar: number; verwacht_tekort: number } | null
   scenarios: ScenarioResult[]
+  risico_items: RisicoItem[]
   bijdrage_per_appartement: BijdragePerAppartement[]
 }
 

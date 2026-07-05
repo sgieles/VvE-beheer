@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     ADMIN_USERNAME: str = ""
     ADMIN_PASSWORD: str = ""
 
+    ANTHROPIC_API_KEY: str = ""
+
     AZURE_CLIENT_ID: str = ""
     AZURE_CLIENT_SECRET: str = ""
     AZURE_TENANT_ID: str = ""

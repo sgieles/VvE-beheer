@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { FinancialDashboard } from '@/types'
+import type { FinancialDashboard, BalanceRow, QuarterRow } from '@/types'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer, Legend, Cell,
@@ -18,12 +18,26 @@ function formatEurFull(v: number) {
 }
 
 type YearRange = 5 | 10 | 20 | 'alles'
+type Granularity = 'jaar' | 'kwartaal'
+
+type ChartRow = { label: string; costs: number; contributions: number; balance: number; isShortfall: boolean }
+
+function toChartRows(rows: (BalanceRow | QuarterRow)[], useLabel: boolean): ChartRow[] {
+  return rows.map((row) => ({
+    label: useLabel ? (row as QuarterRow).label : String(row.year),
+    costs: Math.round(row.costs),
+    contributions: Math.round(row.contributions),
+    balance: Math.round(row.balance),
+    isShortfall: row.balance < 0,
+  }))
+}
 
 export default function DashboardPage() {
   const { user, activeVveId } = useAuthStore()
   const vveId = activeVveId
   const [yearRange, setYearRange] = useState<YearRange>(10)
   const [inflatie, setInflatie] = useState(0)
+  const [granularity, setGranularity] = useState<Granularity>('jaar')
 
   const { data: dashboard } = useQuery<FinancialDashboard>({
     queryKey: ['dashboard', vveId, inflatie],
@@ -34,19 +48,16 @@ export default function DashboardPage() {
 
   const hasShortfalls = (dashboard?.shortfalls?.length ?? 0) > 0
   const periodeLabel = dashboard?.contribution_frequency === 'monthly' ? 'maand' : 'kwartaal'
-  const currentYear = new Date().getFullYear()
-
-  const allChartData = (dashboard?.projected_balance_by_year ?? []).map((row) => ({
-    year: row.year,
-    costs: Math.round(row.costs),
-    contributions: Math.round(row.contributions),
-    balance: Math.round(row.balance),
-    isShortfall: row.balance < 0,
-  }))
+  const allChartData: ChartRow[] = granularity === 'kwartaal'
+    ? toChartRows(dashboard?.projected_balance_by_quarter ?? [], true)
+    : toChartRows(dashboard?.projected_balance_by_year ?? [], false)
 
   const chartData = yearRange === 'alles'
     ? allChartData
-    : allChartData.filter((r) => r.year <= currentYear + yearRange)
+    : allChartData.filter((_, i) => {
+        const limit = granularity === 'kwartaal' ? yearRange * 4 : yearRange
+        return i < (limit as number)
+      })
 
   return (
     <div className="p-8">
@@ -128,6 +139,22 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <h2 className="text-base font-semibold text-gray-900">Prognose reservefonds</h2>
             <div className="flex items-center gap-4 flex-wrap">
+              {/* Granulariteit toggle */}
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                {(['jaar', 'kwartaal'] as Granularity[]).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGranularity(g)}
+                    className={`px-3 py-1 rounded text-xs font-medium capitalize transition-colors ${
+                      granularity === g
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
               {/* Inflatie slider */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 whitespace-nowrap">Inflatie MJOP:</span>

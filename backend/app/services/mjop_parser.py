@@ -1,14 +1,27 @@
 """
 Parser voor MJOP bestanden (Excel en PDF).
-Omdat MJOP formats sterk variëren, gebruiken we een heuristische aanpak:
-1. Zoek naar kolommen met jaar/kwartaal, omschrijving en bedrag
-2. Bied fallback naar handmatige kolomtoewijzing als auto-detect mislukt
+
+PDF-strategie (twee stappen):
+  1. Claude API leest het PDF-document en produceert ruwe JSON
+  2. Python validatiestap controleert plausibiliteit en flaggt twijfelcases
+
+Fallback: als ANTHROPIC_API_KEY niet is ingesteld, gebruikt de parser de
+heuristische regex-aanpak (originele implementatie).
 """
+import base64
+import json
+import logging
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
+
 import pandas as pd
 
+log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Gedeelde helpers
+# ---------------------------------------------------------------------------
 
 YEAR_PATTERNS = re.compile(r"\b(20\d{2})\b")
 QUARTER_PATTERNS = re.compile(r"\bQ([1-4])\b|\bkwartaal\s*([1-4])\b", re.IGNORECASE)
@@ -23,12 +36,15 @@ def _normalize_amount(value) -> Decimal | None:
     try:
         s = str(value).replace("€", "").replace(".", "").replace(",", ".").strip()
         return Decimal(s)
-    except Exception:
+    except (InvalidOperation, ValueError):
         return None
 
 
+# ---------------------------------------------------------------------------
+# Excel-parser (ongewijzigd)
+# ---------------------------------------------------------------------------
+
 def _detect_columns(df: pd.DataFrame) -> dict:
-    """Probeer kolommen te identificeren op basis van kolomnamen."""
     mapping = {"year": None, "quarter": None, "description": None, "amount": None}
     for col in df.columns:
         col_lower = str(col).lower().strip()
@@ -44,7 +60,6 @@ def _detect_columns(df: pd.DataFrame) -> dict:
 
 
 def _parse_year_quarter_from_cell(cell_value) -> tuple[int | None, int | None]:
-    """Haal jaar en kwartaal uit een cel (bijv. '2026', '2026 Q2', 'Q3 2027')."""
     s = str(cell_value)
     year_match = YEAR_PATTERNS.search(s)
     quarter_match = QUARTER_PATTERNS.search(s)
@@ -56,11 +71,9 @@ def _parse_year_quarter_from_cell(cell_value) -> tuple[int | None, int | None]:
 
 
 def parse_excel(file_path: str) -> list[dict]:
-    """Parse een Excel MJOP bestand naar een lijst van kostenposten."""
     path = Path(file_path)
     xl = pd.ExcelFile(path)
 
-    # Gebruik het eerste sheet, of zoek naar een sheet met 'MJOP' of 'onderhoud' in de naam
     sheet_name = xl.sheet_names[0]
     for name in xl.sheet_names:
         if any(k in name.lower() for k in ("mjop", "onderhoud", "plan", "meerjaren")):
@@ -69,7 +82,6 @@ def parse_excel(file_path: str) -> list[dict]:
 
     df = pd.read_excel(path, sheet_name=sheet_name, header=None)
 
-    # Zoek de headerrij (eerste rij met meer dan 2 niet-lege cellen die tekst bevatten)
     header_row = 0
     for i, row in df.iterrows():
         non_empty = row.dropna()
@@ -98,7 +110,6 @@ def parse_excel(file_path: str) -> list[dict]:
         if mapping["amount"]:
             amount = _normalize_amount(row.get(mapping["amount"]))
 
-        # Fallback: scan alle cellen voor jaar als kolom niet gevonden
         if year is None:
             for val in row:
                 y, q = _parse_year_quarter_from_cell(val)
@@ -120,30 +131,162 @@ def parse_excel(file_path: str) -> list[dict]:
     return items
 
 
-def parse_pdf(file_path: str) -> list[dict]:
-    """Parse een PDF MJOP bestand.
+# ---------------------------------------------------------------------------
+# PDF-parser via Claude API
+# ---------------------------------------------------------------------------
 
-    Ondersteunt twee formaten:
-    1. Gedetailleerde activiteitsregels: '[omschrijving] [hoeveelheid] [jaar] [bedragen]'
-    2. Samenvattingspagina (Hoofdgroepen) met jaar-kolommen in de header.
-    """
+_CLAUDE_PROMPT = """Dit is een MJOP (Meerjarenonderhoudsplan) van een VvE (Vereniging van Eigenaren).
+
+Extraheer alle geplande onderhoudswerkzaamheden als een JSON array. Gebruik exact dit formaat:
+[
+  {
+    "planned_year": 2026,
+    "planned_quarter": null,
+    "description": "Dakbedekking vervangen pand A",
+    "planned_amount": 15000.00,
+    "category": "dak"
+  }
+]
+
+Regels:
+- planned_year: integer, het geplande uitvoeringsjaar
+- planned_quarter: integer 1-4 of null als geen kwartaal vermeld
+- description: beknopte omschrijving van de werkzaamheid (max 200 tekens)
+- planned_amount: bedrag in euro als float, exclusief BTW indien beide beschikbaar, altijd positief
+- category: kies het meest passende uit: dak, gevel, kozijnen, installaties, lift, schilderwerk, overig
+
+Geef ALLEEN de JSON array terug — geen uitleg, geen markdown, geen andere tekst.
+Sla rijen over die geen concreet bedrag of jaar hebben (headers, totaalregels, lege rijen).
+"""
+
+
+def _validate_items(raw: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Splits items in valide en twijfelachtig. Retourneert (valide, geflagd)."""
+    valid, flagged = [], []
+    valid_categories = {"dak", "gevel", "kozijnen", "installaties", "lift", "schilderwerk", "overig"}
+
+    for item in raw:
+        issues = []
+        try:
+            year = int(item.get("planned_year", 0))
+            amount = float(item.get("planned_amount", 0))
+            desc = str(item.get("description", "")).strip()
+            quarter = item.get("planned_quarter")
+            category = item.get("category", "overig")
+
+            if not (2020 <= year <= 2060):
+                issues.append(f"jaar {year} buiten bereik")
+            if amount <= 0:
+                issues.append("bedrag <= 0")
+            if amount > 500_000:
+                issues.append(f"bedrag €{amount:,.0f} ongebruikelijk hoog")
+            if len(desc) < 3:
+                issues.append("omschrijving te kort")
+            if quarter is not None and quarter not in (1, 2, 3, 4):
+                issues.append(f"kwartaal {quarter} ongeldig")
+                quarter = None
+            if category not in valid_categories:
+                category = "overig"
+
+            normalized = {
+                "planned_year": year,
+                "planned_quarter": quarter,
+                "description": desc[:200],
+                "planned_amount": Decimal(str(round(amount, 2))),
+                "category": category,
+            }
+
+            if issues:
+                normalized["_validation_warnings"] = issues
+                flagged.append(normalized)
+            else:
+                valid.append(normalized)
+
+        except (TypeError, ValueError) as e:
+            log.warning("Item overgeslagen na validatiefout: %s — %s", item, e)
+
+    return valid, flagged
+
+
+def parse_pdf_with_claude(file_path: str) -> list[dict]:
+    """Stap 1: Claude API leest PDF. Stap 2: Python valideert output."""
+    from app.core.config import settings
+    import anthropic
+
+    pdf_bytes = Path(file_path).read_bytes()
+    pdf_b64 = base64.standard_b64encode(pdf_bytes).decode()
+
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=4096,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_b64,
+                        },
+                    },
+                    {"type": "text", "text": _CLAUDE_PROMPT},
+                ],
+            }
+        ],
+    )
+
+    raw_text = message.content[0].text.strip()
+
+    # Strip eventuele markdown code-fences
+    raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
+    raw_text = re.sub(r"\s*```$", "", raw_text)
+
+    try:
+        raw_items = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Claude retourneerde ongeldige JSON: {e}\n\nOutput:\n{raw_text[:500]}") from e
+
+    valid, flagged = _validate_items(raw_items)
+
+    if flagged:
+        log.warning(
+            "MJOP Claude-parser: %d valide posten, %d geflagd voor review: %s",
+            len(valid),
+            len(flagged),
+            [f["_validation_warnings"] for f in flagged],
+        )
+        # Voeg geflagde items toch toe zodat de beheerder ze kan beoordelen
+        for item in flagged:
+            item.pop("_validation_warnings", None)
+        valid.extend(flagged)
+
+    return valid
+
+
+# ---------------------------------------------------------------------------
+# Heuristische PDF-parser (fallback)
+# ---------------------------------------------------------------------------
+
+def parse_pdf_heuristic(file_path: str) -> list[dict]:
     import pdfplumber
 
     items = []
-    seen: set[tuple] = set()  # deduplicatie
+    seen: set[tuple] = set()
 
-    # Regex: activiteitsregel met een jaar (Stj) gevolgd door € bedragen
     ACTIVITY_RE = re.compile(
-        r"^(.+?)"                               # beschrijving (non-greedy)
-        r"\s+[\d]+[,.][\d]+\s*\w{0,4}"         # hoeveelheid + eenheid (bijv. 1,00pst)
-        r"\s+(20\d{2})"                         # startjaar
-        r"(?:\s+\d{1,2})?"                      # optioneel cyclus
-        r"((?:\s+[€€]\s*[\d.,]+)+)",       # één of meer bedragen
+        r"^(.+?)"
+        r"\s+[\d]+[,.][\d]+\s*\w{0,4}"
+        r"\s+(20\d{2})"
+        r"(?:\s+\d{1,2})?"
+        r"((?:\s+[€€]\s*[\d.,]+)+)",
     )
-    # Fallback: elke regel met jaar + bedrag
     SIMPLE_RE = re.compile(
-        r"(20\d{2})(?:\s+\d{1,2})?"            # jaar (+ optionele cyclus)
-        r"((?:\s+[€€]\s*[\d.,]+)+)",       # één of meer bedragen
+        r"(20\d{2})(?:\s+\d{1,2})?"
+        r"((?:\s+[€€]\s*[\d.,]+)+)",
     )
 
     SKIP_PREFIXES = ("totaal", "btw", "code/", "code ", "hvhehd", "conditie",
@@ -157,7 +300,6 @@ def parse_pdf(file_path: str) -> list[dict]:
         for page in pdf.pages:
             text = page.extract_text() or ""
 
-            # --- Methode 1: gedetailleerde activiteitenpagina's ---
             if "Code/Element" in text or "Handeling" in text:
                 lines = text.split("\n")
                 fallback_desc = ""
@@ -172,9 +314,7 @@ def parse_pdf(file_path: str) -> list[dict]:
 
                     m = ACTIVITY_RE.match(stripped)
                     if m:
-                        desc = m.group(1).strip()
-                        # Verwijder eventuele gebrekscode achteraan (bijv. "Scheurvorming")
-                        desc = re.sub(r"\s+[A-Z][a-z]+$", "", desc).strip()
+                        desc = re.sub(r"\s+[A-Z][a-z]+$", "", m.group(1).strip()).strip()
                         year = int(m.group(2))
                         amount = _extract_first_amount(m.group(3))
                         if amount and amount > 0 and 2020 <= year <= 2060:
@@ -189,12 +329,10 @@ def parse_pdf(file_path: str) -> list[dict]:
                                     "category": None,
                                 })
                     else:
-                        # Sla elementnaam op als context voor volgende regels
                         clean = re.sub(r"^\d{2,4}\s+", "", stripped)
                         if len(clean) > 5 and not re.search(r"[€€]", clean):
                             fallback_desc = clean
 
-                # Als methode 1 niets vond: val terug op SIMPLE_RE
                 if not items:
                     for line in lines:
                         stripped = line.strip()
@@ -204,8 +342,7 @@ def parse_pdf(file_path: str) -> list[dict]:
                         if sm:
                             year = int(sm.group(1))
                             amount = _extract_first_amount(sm.group(2))
-                            desc_part = stripped[:sm.start()].strip()
-                            desc_part = re.sub(r"\s*[\d,]+\s*\w{0,4}\s*$", "", desc_part).strip()
+                            desc_part = re.sub(r"\s*[\d,]+\s*\w{0,4}\s*$", "", stripped[:sm.start()].strip()).strip()
                             if amount and amount > 0 and 2020 <= year <= 2060 and len(desc_part) > 2:
                                 key = (year, desc_part[:50])
                                 if key not in seen:
@@ -218,7 +355,6 @@ def parse_pdf(file_path: str) -> list[dict]:
                                         "category": None,
                                     })
 
-            # --- Methode 2: samenvattingspagina (Hoofdgroepen) ---
             elif "Hoofdgroepen" in text or "hoofdgroep" in text.lower():
                 lines = text.split("\n")
                 header_years: list[int] = []
@@ -228,21 +364,15 @@ def parse_pdf(file_path: str) -> list[dict]:
                     if len(years_found) >= 3:
                         header_years = [int(y) for y in years_found]
                         continue
-
                     if not header_years:
                         continue
-
-                    # Dataregel: begint met code + omschrijving, gevolgd door bedragen
                     row_match = re.match(r"^(\d{2,4})\s+(.+?)\s+([€€].*)", line.strip())
                     if not row_match:
                         continue
-
                     desc = row_match.group(2).strip()
                     amounts_str = row_match.group(3)
                     amounts = [_normalize_amount(v) for v in re.findall(r"[€€]\s*([\d.,]+)", amounts_str)]
-                    # Laatste bedrag is het totaal; de rest zijn per-jaar bedragen
                     year_amounts = amounts[:-1] if len(amounts) > 1 else amounts
-
                     for i, amt in enumerate(year_amounts):
                         if amt and amt > 0 and i < len(header_years):
                             year = header_years[i]
@@ -260,8 +390,18 @@ def parse_pdf(file_path: str) -> list[dict]:
     return items
 
 
+def parse_pdf(file_path: str) -> list[dict]:
+    """Kies Claude API als ANTHROPIC_API_KEY beschikbaar is, anders heuristisch."""
+    from app.core.config import settings
+    if settings.ANTHROPIC_API_KEY:
+        try:
+            return parse_pdf_with_claude(file_path)
+        except Exception as e:
+            log.error("Claude PDF-parser mislukt, val terug op heuristiek: %s", e)
+    return parse_pdf_heuristic(file_path)
+
+
 def parse_mjop_file(file_path: str) -> list[dict]:
-    """Kies parser op basis van bestandsextensie."""
     ext = Path(file_path).suffix.lower()
     if ext in (".xlsx", ".xls", ".xlsm"):
         return parse_excel(file_path)

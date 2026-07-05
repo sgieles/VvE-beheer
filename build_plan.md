@@ -97,14 +97,14 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [x] Bijdrage per appartement berekenen op basis van aandeel (proportioneel)
 - [x] Bijdrage-overzicht per appartement op dashboard
 - [ ] Historisch bijdrageplan (meerdere periodes)
-- [ ] Automatische bijschrijving op de 20ste: maandelijks een reservefonds-mutatie aanmaken op basis van het actieve bijdrageplan
+- [x] Automatische bijschrijving op de 20ste: bij berekening huidig saldo worden bijdragen sinds laatste entry automatisch meegeteld (geen DB-entries, puur berekend)
 - [ ] Balanssheet upload: PDF/Excel bankbalans inlezen → saldo + datum extraheren → reservefonds berekenen als saldo + bijdragen vanaf balansdatum t/m vandaag
 
 **Dashboard & grafiek**
 - [x] KPI-blokken: saldo nu, kosten 5/10 jaar
 - [x] Vroegtijdige waarschuwing op dashboard (tekort binnen 2 jaar) — suggestie D ✅
 - [x] Inflatie-/indexatiecorrectie via query-parameter `?inflatie=X` — suggestie A ✅
-- [ ] Tijdsgranulariteit instelbaar: per jaar / kwartaal / maand
+- [x] Tijdsgranulariteit instelbaar: jaar / kwartaal (toggle op dashboard)
 - [x] Jaar-filter: kijkperiode instellen (5 / 10 / 20 jaar of aangepast)
 - [x] Gestapeld staafdiagram: bijdragen (groen) vs. kosten (rood) per periode
 - [x] Tekortanalyse: lijst van periodes met tekort + bedrag
@@ -116,7 +116,7 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [ ] Limiet instellen: maximaal X jaar/kwartalen verschuiven
 
 **MJOP verbeteringen**
-- [ ] PDF-parser vervangen door twee-staps aanpak: (1) Claude API leest PDF als document en produceert ruwe JSON (jaar, omschrijving, bedrag, categorie) in één call; (2) Python validatiestap controleert plausibiliteit van jaren en bedragen, flaggt twijfelachtige rijen voor handmatige review — betrouwbaarder dan heuristische regex zonder overhead van volledige multi-agent pipeline
+- [x] PDF-parser twee-staps aanpak: Claude API (claude-haiku) leest PDF als document → ruwe JSON; Python valideert jaar/bedrag/categorie en flaggt twijfelaars; automatische fallback op heuristische regex als ANTHROPIC_API_KEY niet ingesteld is
 - [ ] Categorieën per post (dak, gevel, installaties, lift, kozijnen, overig)
 - [ ] Groepeerweergave per categorie met subtotalen — suggestie E (taartdiagram kosten per categorie)
 - [ ] Actueel vs. begroot: werkelijke kosten invullen bij afgeronde posten — suggestie C

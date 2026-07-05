@@ -77,6 +77,57 @@ def _build_yearly_cashflow(inp: FinancialInput) -> list[dict]:
     return result
 
 
+def _build_quarterly_cashflow(inp: FinancialInput) -> list[dict]:
+    """Bouw een cashflow-overzicht per kwartaal op."""
+    contribution_per_quarter = (
+        inp.contribution_per_period * 3
+        if inp.contribution_frequency == "monthly"
+        else inp.contribution_per_period
+    )
+
+    costs_by_quarter: dict[tuple[int, int], Decimal] = {}
+    for item in inp.mjop_items:
+        if item.planned_quarter:
+            key = (item.planned_year, item.planned_quarter)
+            costs_by_quarter[key] = costs_by_quarter.get(key, Decimal(0)) + item.planned_amount
+        else:
+            per_q = item.planned_amount / 4
+            for q in range(1, 5):
+                key = (item.planned_year, q)
+                costs_by_quarter[key] = costs_by_quarter.get(key, Decimal(0)) + per_q
+
+    if not costs_by_quarter:
+        return []
+
+    max_year = max(k[0] for k in costs_by_quarter.keys())
+    result = []
+    balance = inp.current_balance
+
+    for year in range(inp.current_year, max_year + 1):
+        for q in range(1, 5):
+            if year == inp.current_year and q < inp.current_quarter:
+                continue
+            raw_costs = costs_by_quarter.get((year, q), Decimal(0))
+            if inp.inflatie_percentage > 0:
+                quarters_from_now = (year - inp.current_year) * 4 + (q - inp.current_quarter)
+                factor = Decimal(str((1 + float(inp.inflatie_percentage) / 100) ** (quarters_from_now / 4)))
+                costs = raw_costs * factor
+            else:
+                costs = raw_costs
+            balance += contribution_per_quarter - costs
+            result.append({
+                "year": year,
+                "quarter": q,
+                "label": f"{year} Q{q}",
+                "costs": costs,
+                "contributions": contribution_per_quarter,
+                "balance": balance,
+                "shortfall": abs(balance) if balance < 0 else Decimal(0),
+            })
+
+    return result
+
+
 def calculate_shortfalls(inp: FinancialInput) -> list[dict]:
     """Geeft jaren terug waarop het fonds negatief wordt."""
     cashflow = _build_yearly_cashflow(inp)
@@ -270,20 +321,20 @@ def calculate_all_scenarios(inp: FinancialInput) -> dict:
             scenario_one_time_levy(inp),
         ]
 
+    quarterly_cashflow = _build_quarterly_cashflow(inp)
+
+    def _floatify(rows: list[dict]) -> list[dict]:
+        return [{k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()} for row in rows]
+
     return {
         "current_reservefonds_balance": float(inp.current_balance),
         "contribution_frequency": inp.contribution_frequency,
         "current_contribution_per_period": float(inp.contribution_per_period),
         "total_planned_costs_next_5_years": float(costs_5),
         "total_planned_costs_next_10_years": float(costs_10),
-        "projected_balance_by_year": [
-            {k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()}
-            for row in cashflow
-        ],
-        "shortfalls": [
-            {k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()}
-            for row in shortfalls
-        ],
+        "projected_balance_by_year": _floatify(cashflow),
+        "projected_balance_by_quarter": _floatify(quarterly_cashflow),
+        "shortfalls": _floatify(shortfalls),
         "vroege_waarschuwing": vroege_waarschuwing,
         "scenarios": scenarios,
     }

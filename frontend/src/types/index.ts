@@ -110,6 +110,19 @@ export interface BijdragePerAppartement {
   bijdrage_per_periode: number
 }
 
+export interface BalanceRow {
+  year: number
+  costs: number
+  contributions: number
+  balance: number
+  shortfall: number
+}
+
+export interface QuarterRow extends BalanceRow {
+  quarter: number
+  label: string
+}
+
 export interface FinancialDashboard {
   current_reservefonds_balance: number
   contribution_frequency: ContributionFrequency
@@ -118,13 +131,8 @@ export interface FinancialDashboard {
   bijdrage_per_eenheid: number | null
   total_planned_costs_next_5_years: number
   total_planned_costs_next_10_years: number
-  projected_balance_by_year: Array<{
-    year: number
-    costs: number
-    contributions: number
-    balance: number
-    shortfall: number
-  }>
+  projected_balance_by_year: BalanceRow[]
+  projected_balance_by_quarter: QuarterRow[]
   shortfalls: Array<{ year: number; shortfall: number }>
   vroege_waarschuwing: { jaar: number; verwacht_tekort: number } | null
   scenarios: ScenarioResult[]

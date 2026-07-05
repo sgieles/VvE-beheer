@@ -23,6 +23,38 @@ from app.services.scenario_calculator import (
 router = APIRouter(prefix="/api/vves/{vve_id}/financial", tags=["financial"])
 
 
+def _bereken_auto_bijdragen(
+    last_entry_date: date,
+    today: date,
+    amount_per_period: Decimal,
+    frequency: str,
+) -> Decimal:
+    """Tel bijdragen mee die automatisch geboekt worden (20ste van elke periode)."""
+    if frequency == "monthly":
+        count = 0
+        year, month = last_entry_date.year, last_entry_date.month
+        while True:
+            booking = date(year, month, 20)
+            if last_entry_date < booking <= today:
+                count += 1
+            if month == 12:
+                year, month = year + 1, 1
+            else:
+                month += 1
+            if date(year, month, 1) > today:
+                break
+        return amount_per_period * count
+    elif frequency == "quarterly":
+        count = 0
+        for year in range(last_entry_date.year, today.year + 1):
+            for month in (1, 4, 7, 10):
+                booking = date(year, month, 20)
+                if last_entry_date < booking <= today:
+                    count += 1
+        return amount_per_period * count
+    return Decimal(0)
+
+
 def _check_vve_access(vve_id: int, user: User, db: Session):
     require_vve_access(vve_id, user, db)
 
@@ -287,17 +319,22 @@ def get_financial_dashboard(
     if not vve:
         raise HTTPException(status_code=404, detail="VvE niet gevonden")
 
-    # Huidig reservefonds saldo
-    entries = db.query(ReserveFondsEntry).filter(ReserveFondsEntry.vve_id == vve_id).all()
-    balance = sum(e.amount for e in entries) if entries else Decimal(0)
+    today = date.today()
 
     # Actueel bijdrageplan
-    today = date.today()
     plan = db.query(ContributionPlan).filter(
         ContributionPlan.vve_id == vve_id,
         ContributionPlan.effective_from <= today,
     ).order_by(ContributionPlan.effective_from.desc()).first()
     contribution = plan.amount_per_period if plan else Decimal(0)
+
+    # Huidig reservefonds saldo + automatische bijschrijvingen op de 20ste
+    entries = db.query(ReserveFondsEntry).filter(ReserveFondsEntry.vve_id == vve_id).all()
+    balance = sum(e.amount for e in entries) if entries else Decimal(0)
+
+    if entries and plan:
+        last_date = max(e.entry_date for e in entries)
+        balance += _bereken_auto_bijdragen(last_date, today, plan.amount_per_period, vve.contribution_frequency)
 
     # MJOP items van actief upload
     active_upload = db.query(MJOPUpload).filter(

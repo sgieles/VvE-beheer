@@ -5,7 +5,7 @@ import api from '@/services/api'
 import type { User, VvE } from '@/types'
 import {
   LayoutDashboard, Home, TrendingUp, CalendarDays, LogOut,
-  Building2, ChevronDown, ShieldCheck,
+  Building2, ChevronDown, ShieldCheck, Info,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
@@ -104,6 +104,22 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        <div className="px-4 pb-2">
+          <NavLink
+            to="/info"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`
+            }
+          >
+            <Info size={18} />
+            Hoe werkt het?
+          </NavLink>
+        </div>
 
         <div className="p-4 border-t border-gray-200">
           <div className="mb-3 px-3">

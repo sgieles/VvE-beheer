@@ -220,14 +220,18 @@ def scenario_defer_activity(inp: FinancialInput) -> dict:
     modified_items = list(inp.mjop_items)
 
     for candidate in candidates:
-        # Verschuif 1 jaar naar voren
+        # Verschuif 1 kwartaal (als kwartaal bekend) of 1 jaar
+        if candidate.planned_quarter is not None:
+            new_year, new_q = _add_quarters(candidate.planned_year, candidate.planned_quarter, 1)
+        else:
+            new_year, new_q = candidate.planned_year + 1, None
         new_items = []
         for item in modified_items:
             if item.id == candidate.id:
                 new_items.append(MJOPItemInput(
                     id=item.id,
-                    planned_year=item.planned_year + 1,
-                    planned_quarter=item.planned_quarter,
+                    planned_year=new_year,
+                    planned_quarter=new_q,
                     planned_amount=item.planned_amount,
                     description=item.description,
                 ))
@@ -235,7 +239,9 @@ def scenario_defer_activity(inp: FinancialInput) -> dict:
                     "item_id": candidate.id,
                     "description": candidate.description,
                     "original_year": candidate.planned_year,
-                    "proposed_year": candidate.planned_year + 1,
+                    "original_quarter": candidate.planned_quarter,
+                    "proposed_year": new_year,
+                    "proposed_quarter": new_q,
                     "amount": float(candidate.planned_amount),
                 })
             else:
@@ -289,6 +295,126 @@ def scenario_one_time_levy(inp: FinancialInput) -> dict:
         "impact_per_period_per_aandeel": Decimal(0),
         "total_shortfall": max_shortfall,
         "coverage_start_year": inp.current_year,
+    }
+
+
+def _add_quarters(year: int, quarter: int, steps: int) -> tuple[int, int]:
+    """Verschuif (year, quarter) met `steps` kwartalen vooruit (steps > 0)."""
+    total = year * 4 + (quarter - 1) + steps
+    return total // 4, total % 4 + 1
+
+
+def _make_inp(base: FinancialInput, items: list[MJOPItemInput]) -> FinancialInput:
+    return FinancialInput(
+        current_balance=base.current_balance,
+        contribution_per_period=base.contribution_per_period,
+        contribution_frequency=base.contribution_frequency,
+        mjop_items=items,
+        current_year=base.current_year,
+        current_quarter=base.current_quarter,
+        member_aandelen=base.member_aandelen,
+        inflatie_percentage=base.inflatie_percentage,
+    )
+
+
+def _floatify_rows(rows: list[dict]) -> list[dict]:
+    return [{k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()} for row in rows]
+
+
+def smart_planning(inp: FinancialInput, max_shift_quarters: int = 8) -> dict:
+    """
+    Verschuift de duurste MJOP-posten in tekortjaren naar latere kwartalen/jaren.
+    - Posten MET kwartaal: probeert per kwartaal te verschuiven (tot max_shift_quarters).
+    - Posten ZONDER kwartaal: verschuift per jaar (tot max_shift_quarters // 4 jaar).
+    """
+    original_cashflow = _build_yearly_cashflow(inp)
+    original_shortfalls = [r for r in original_cashflow if r["shortfall"] > 0]
+
+    if not original_shortfalls:
+        return {
+            "proposed_shifts": [],
+            "new_cashflow": _floatify_rows(original_cashflow),
+            "original_cashflow": _floatify_rows(original_cashflow),
+            "shortfalls_resolved": True,
+            "shortfalls_remaining": [],
+        }
+
+    modified_items = list(inp.mjop_items)
+    proposed_shifts: list[dict] = []
+    shifted_ids: set[int] = set()
+
+    for _ in range(len(inp.mjop_items)):
+        cashflow = _build_yearly_cashflow(_make_inp(inp, modified_items))
+        shortfall_map = {int(r["year"]): r["shortfall"] for r in cashflow if r["shortfall"] > 0}
+        if not shortfall_map:
+            break
+
+        candidates = sorted(
+            [i for i in modified_items if i.planned_year in shortfall_map and i.id not in shifted_ids],
+            key=lambda x: x.planned_amount,
+            reverse=True,
+        )
+        if not candidates:
+            break
+
+        made_shift = False
+        for candidate in candidates:
+            # Bepaal te proberen verschuivingen
+            if candidate.planned_quarter is not None:
+                shifts_to_try = [
+                    _add_quarters(candidate.planned_year, candidate.planned_quarter, delta)
+                    for delta in range(1, max_shift_quarters + 1)
+                ]
+            else:
+                max_years = max(1, max_shift_quarters // 4)
+                shifts_to_try = [(candidate.planned_year + d, None) for d in range(1, max_years + 1)]
+
+            for target_year, target_q in shifts_to_try:
+                test_items = [
+                    MJOPItemInput(
+                        id=i.id,
+                        planned_year=target_year,
+                        planned_quarter=target_q if i.id == candidate.id else i.planned_quarter,
+                        planned_amount=i.planned_amount,
+                        description=i.description,
+                    ) if i.id == candidate.id else i
+                    for i in modified_items
+                ]
+                test_cf = _build_yearly_cashflow(_make_inp(inp, test_items))
+                new_shortfall = next(
+                    (r["shortfall"] for r in test_cf if r["year"] == candidate.planned_year),
+                    Decimal(0),
+                )
+                if new_shortfall < shortfall_map[candidate.planned_year]:
+                    original_item = next((i for i in inp.mjop_items if i.id == candidate.id), candidate)
+                    proposed_shifts.append({
+                        "item_id": candidate.id,
+                        "description": candidate.description,
+                        "original_year": original_item.planned_year,
+                        "original_quarter": original_item.planned_quarter,
+                        "proposed_year": target_year,
+                        "proposed_quarter": target_q,
+                        "amount": float(candidate.planned_amount),
+                    })
+                    modified_items = test_items
+                    shifted_ids.add(candidate.id)
+                    made_shift = True
+                    break
+            if made_shift:
+                break
+
+        if not made_shift:
+            break
+
+    final_cf = _build_yearly_cashflow(_make_inp(inp, modified_items))
+    remaining = [r for r in final_cf if r["shortfall"] > 0]
+
+    return {
+        "proposed_shifts": proposed_shifts,
+        "new_cashflow": _floatify_rows(final_cf),
+        "original_cashflow": _floatify_rows(original_cashflow),
+        "shortfalls_resolved": len(remaining) == 0,
+        "shortfalls_remaining": _floatify_rows(remaining),
     }
 
 

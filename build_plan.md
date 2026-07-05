@@ -96,7 +96,7 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [x] VvE `share_denominator`: bijdrage per 1/N aandeel-eenheid instellen
 - [x] Bijdrage per appartement berekenen op basis van aandeel (proportioneel)
 - [x] Bijdrage-overzicht per appartement op dashboard
-- [ ] Historisch bijdrageplan (meerdere periodes)
+- [x] Historisch bijdrageplan (meerdere periodes): meerdere ContributionPlan-periodes, actief plan auto-gesloten bij nieuw plan, BijdragenTab toont volledige historiek met "actief" badge
 - [x] Automatische bijschrijving op de 20ste: bij berekening huidig saldo worden bijdragen sinds laatste entry automatisch meegeteld (geen DB-entries, puur berekend)
 - [x] Balanssheet upload: PDF/Excel bankbalans inlezen → saldo + datum extraheren → reservefonds berekenen als saldo + bijdragen vanaf balansdatum t/m vandaag
 
@@ -110,22 +110,35 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 - [x] Tekortanalyse: lijst van periodes met tekort + bedrag
 
 **Slimme planning**
-- [ ] Algoritme: verschuif duurste posten in tekortperiodes naar aangrenzende periodes
-- [ ] Vergelijkingsweergave: origineel plan vs. slim plan
-- [ ] Gebruiker kan voorstel accepteren of individuele verschuivingen aanpassen
-- [ ] Limiet instellen: maximaal X jaar/kwartalen verschuiven
+- [x] Algoritme: verschuif duurste posten in tekortperiodes naar aangrenzende periodes
+- [x] Vergelijkingsweergave: origineel plan vs. slim plan
+- [x] Gebruiker kan voorstel accepteren of individuele verschuivingen aanpassen
+- [x] Kwartaalverschuivingen: posten met kwartaal verschuiven per kwartaal (±1–8Q), jaarposten per jaar
+- [x] Limiet instellen: maximaal X kwartalen verschuiven (UI slider 1–16Q, default 8Q)
 
 **MJOP verbeteringen**
 - [x] PDF-parser vijf-staps Python pipeline (geen externe API): Classifier detecteert tabelformaat (breed/lang), Extractor haalt cellen op via pdfplumber.extract_tables(), Normalizer leidt categorie af, Validator controleert plausibiliteit, tekst-fallback als geen tabellen gevonden
-- [ ] Categorieën per post (dak, gevel, installaties, lift, kozijnen, overig)
-- [ ] Groepeerweergave per categorie met subtotalen — suggestie E (taartdiagram kosten per categorie)
-- [ ] Actueel vs. begroot: werkelijke kosten invullen bij afgeronde posten — suggestie C
-- [ ] Bulk-bewerking: meerdere posten tegelijk verschuiven
+- [x] Categorieën per post (dak, gevel, installaties, lift, kozijnen, overig)
+- [x] Groepeerweergave per categorie met subtotalen — suggestie E (taartdiagram kosten per categorie)
+- [x] Actueel vs. begroot: werkelijke kosten invullen bij afgeronde posten + afwijkingssamenvatting — suggestie C
+- [x] Bulk-bewerking: meerdere posten tegelijk verschuiven (±1–3 jaar én ±1–4 kwartalen)
+
+**Kwartaalondersteuning**
+- [x] Knop "Wijs Q1 toe aan alle posten zonder kwartaal" (bulk-actie in MJOP-tab)
+- [x] Slimme planning: kwartaalverschuivingen voor posten met kwartaal, jaarverschuivingen voor jaarposten
+- [x] Scenario 'kosten uitstellen': idem kwartaallogica
+- [x] Bulk-bewerking: modus-toggle jaar/kwartaal
+
+**MJOP: Geannuleerde posten**
+- [x] Status 'geannuleerd' toevoegen (DB-migratie + model)
+- [x] Geannuleerde posten uitsluiten van cashflow-berekeningen en scenario's
+- [x] Aparte opvouwbare sectie "Geannuleerde posten" onderaan MJOP-tab
+- [x] Heractiveer-knop: post terugzetten naar 'gepland' met nieuw jaar en optioneel kwartaal
 
 **Simulatie & gezondheidsanalyse**
-- [ ] Ad-hoc simulatiepost toevoegen (oranje in grafiek)
-- [ ] Heranalyse na toevoegen ad-hoc post: systeem toont of post haalbaar is, welke begrote posten erdoor in gevaar komen, of het fonds tekort schiet
-- [ ] Opslaan als definitieve post of verwijderen
+- [x] Ad-hoc simulatiepost toevoegen (oranje gestippelde lijn in grafiek, DashboardPage)
+- [x] Heranalyse na toevoegen ad-hoc post: cumulatieve balansaanpassing, tekortanalyse bijgewerkt
+- [x] Opslaan als definitieve post of verwijderen (SimulatieBanner component)
 - [x] Financiële gezondheidsanalyse prominent op dashboard: drie scenario's (bijdrage verhogen, uitstellen, eenmalig) met concrete bedragen per appartement; groen-indicator als geen tekorten
 - [x] Scenario 1 — kosten verschuiven: algoritme stelt optimaal verschuifmoment voor (minste impact op fonds)
 - [x] Scenario 2 — eenmalige bijdrage: berekening per appartement op basis van aandeel
@@ -134,9 +147,9 @@ VvE Financieel Beheer geeft een VvE-beheerder een helder beeld van toekomstige o
 ### Fase 2 — Kwaliteit & UX
 
 - [ ] Mobile-responsive check (Tailwind breakpoints)
-- [ ] Lege-staat pagina's (wat te doen als er nog geen MJOP is)
+- [x] Lege-staat pagina's: Dashboard (met knoppen naar MJOP/Reservefonds tabs), BijdragenTab
 - [ ] Foutmeldingen en validatie verbeteren
-- [ ] Laadstatus / skeleton loaders
+- [x] Laadstatus / skeleton loaders: DashboardSkeleton + MJOPSkeleton (animate-pulse)
 - [ ] Onboarding-flow voor nieuwe VvE (stap-voor-stap wizard)
 
 ### Fase 3 — Nice to have (uit MVP-definitie)

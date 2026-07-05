@@ -56,13 +56,30 @@ def _seed_admin_if_needed():
 def _run_migrations():
     """Voeg nieuwe kolommen toe aan bestaande tabellen zonder Alembic."""
     with engine.connect() as conn:
+        for stmt in [
+            "ALTER TABLE vves ADD COLUMN IF NOT EXISTS share_denominator INTEGER DEFAULT 1",
+            "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS planned_quarter INTEGER",
+            "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS actual_amount NUMERIC(14,2)",
+            "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS manually_adjusted BOOLEAN NOT NULL DEFAULT false",
+            "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS notes TEXT",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+    # PostgreSQL: voeg 'cancelled' toe aan de MJOP-item status enum
+    # (moet buiten transactie draaien; SQLite sloeg deze stap over)
+    from app.core.config import settings
+    if not settings.DATABASE_URL.startswith("sqlite"):
         try:
-            conn.execute(text(
-                "ALTER TABLE vves ADD COLUMN IF NOT EXISTS share_denominator INTEGER DEFAULT 1"
-            ))
-            conn.commit()
+            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                conn.execute(text(
+                    "ALTER TYPE mjop_item_status_enum ADD VALUE IF NOT EXISTS 'cancelled'"
+                ))
         except Exception:
-            conn.rollback()
+            pass
 
 
 def _seed_demo_data_if_needed():

@@ -18,7 +18,7 @@ from app.schemas.financial import (
 from app.services.mjop_parser import parse_mjop_file
 from app.services.balanssheet_parser import parse_balanssheet
 from app.services.scenario_calculator import (
-    FinancialInput, MJOPItemInput, calculate_all_scenarios
+    FinancialInput, MJOPItemInput, calculate_all_scenarios, smart_planning
 )
 
 router = APIRouter(prefix="/api/vves/{vve_id}/financial", tags=["financial"])
@@ -397,6 +397,7 @@ def get_financial_dashboard(
                 description=i.description,
             )
             for i in db_items
+            if i.status != "cancelled"
         ]
 
     # Appartementen met aandeel
@@ -443,3 +444,99 @@ def get_financial_dashboard(
     result["bijdrage_per_eenheid"] = bijdrage_per_eenheid
     result["bijdrage_per_appartement"] = bijdrage_per_appartement
     return result
+
+
+@router.get("/smart-plan")
+def get_smart_plan(
+    vve_id: int,
+    max_shift_quarters: int = Query(default=8, ge=1, le=16),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _check_vve_access(vve_id, current_user, db)
+    from app.models.vve import VvE
+    from app.models.appartement import Appartement as AppartementModel
+
+    vve = db.query(VvE).filter(VvE.id == vve_id).first()
+    if not vve:
+        raise HTTPException(status_code=404, detail="VvE niet gevonden")
+
+    today = date.today()
+
+    plan = db.query(ContributionPlan).filter(
+        ContributionPlan.vve_id == vve_id,
+        ContributionPlan.effective_from <= today,
+    ).order_by(ContributionPlan.effective_from.desc()).first()
+    contribution = plan.amount_per_period if plan else Decimal(0)
+
+    entries = db.query(ReserveFondsEntry).filter(ReserveFondsEntry.vve_id == vve_id).all()
+    balance = sum(e.amount for e in entries) if entries else Decimal(0)
+    if entries and plan:
+        last_date = max(e.entry_date for e in entries)
+        balance += _bereken_auto_bijdragen(last_date, today, plan.amount_per_period, vve.contribution_frequency)
+
+    active_upload = db.query(MJOPUpload).filter(
+        MJOPUpload.vve_id == vve_id, MJOPUpload.status == "active"
+    ).order_by(MJOPUpload.uploaded_at.desc()).first()
+
+    mjop_items = []
+    if active_upload:
+        db_items = db.query(MJOPItem).filter(MJOPItem.mjop_upload_id == active_upload.id).all()
+        mjop_items = [
+            MJOPItemInput(
+                id=i.id,
+                planned_year=i.planned_year,
+                planned_quarter=i.planned_quarter,
+                planned_amount=i.planned_amount,
+                description=i.description,
+            )
+            for i in db_items
+            if i.status != "cancelled"
+        ]
+
+    appartementen = db.query(AppartementModel).filter(
+        AppartementModel.vve_id == vve_id, AppartementModel.is_active == True
+    ).all()
+    aandelen = [a.aandeel for a in appartementen]
+
+    inp = FinancialInput(
+        current_balance=balance,
+        contribution_per_period=contribution,
+        contribution_frequency=vve.contribution_frequency,
+        mjop_items=mjop_items,
+        current_year=today.year,
+        current_quarter=(today.month - 1) // 3 + 1,
+        member_aandelen=aandelen,
+    )
+
+    return smart_planning(inp, max_shift_quarters=max_shift_quarters)
+
+
+@router.post("/mjop/assign-quarters")
+def assign_quarters(
+    vve_id: int,
+    quarter: int = Query(default=1, ge=1, le=4),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Wijs het opgegeven kwartaal toe aan alle MJOP-posten zonder kwartaal (niet-geannuleerd)."""
+    _check_vve_access(vve_id, current_user, db)
+
+    active_upload = db.query(MJOPUpload).filter(
+        MJOPUpload.vve_id == vve_id, MJOPUpload.status == "active"
+    ).order_by(MJOPUpload.uploaded_at.desc()).first()
+    if not active_upload:
+        raise HTTPException(status_code=404, detail="Geen actief MJOP gevonden")
+
+    items = db.query(MJOPItem).filter(
+        MJOPItem.mjop_upload_id == active_upload.id,
+        MJOPItem.planned_quarter.is_(None),
+        MJOPItem.status != "cancelled",
+    ).all()
+
+    for item in items:
+        item.planned_quarter = quarter
+        item.manually_adjusted = True
+
+    db.commit()
+    return {"updated": len(items)}

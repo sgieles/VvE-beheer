@@ -56,7 +56,7 @@ export interface MJOPItem {
   planned_quarter?: number
   planned_amount: string
   actual_amount?: string
-  status: 'planned' | 'quoted' | 'approved' | 'completed'
+  status: 'planned' | 'quoted' | 'approved' | 'completed' | 'cancelled'
   manually_adjusted: boolean
   notes?: string
   quotes: Quote[]
@@ -183,6 +183,24 @@ export interface FinancialDashboard {
   scenarios: ScenarioResult[]
   risico_items: RisicoItem[]
   bijdrage_per_appartement: BijdragePerAppartement[]
+}
+
+export interface ProposedShift {
+  item_id: number
+  description: string
+  original_year: number
+  original_quarter: number | null
+  proposed_year: number
+  proposed_quarter: number | null
+  amount: number
+}
+
+export interface SmartPlanResult {
+  proposed_shifts: ProposedShift[]
+  new_cashflow: BalanceRow[]
+  original_cashflow: BalanceRow[]
+  shortfalls_resolved: boolean
+  shortfalls_remaining: Array<{ year: number; shortfall: number }>
 }
 
 export interface Meeting {

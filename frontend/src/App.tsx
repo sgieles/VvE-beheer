@@ -8,6 +8,7 @@ import MembersPage from '@/pages/MembersPage'
 import FinancialPage from '@/pages/FinancialPage'
 import MeetingsPage from '@/pages/MeetingsPage'
 import AdminPage from '@/pages/AdminPage'
+import InfoPage from '@/pages/InfoPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="financial" element={<FinancialPage />} />
           <Route path="meetings" element={<MeetingsPage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="info" element={<InfoPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

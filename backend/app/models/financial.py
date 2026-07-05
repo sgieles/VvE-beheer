@@ -42,7 +42,7 @@ class MJOPItem(Base):
     actual_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
 
     status: Mapped[str] = mapped_column(
-        Enum("planned", "quoted", "approved", "completed", name="mjop_item_status_enum"),
+        Enum("planned", "quoted", "approved", "completed", "cancelled", name="mjop_item_status_enum"),
         default="planned",
     )
     notes: Mapped[str | None] = mapped_column(Text)

@@ -146,15 +146,32 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkMode, setBulkMode] = useState<'jaar' | 'kwartaal'>('jaar')
   const [bulkOffset, setBulkOffset] = useState(1)
+  const [bulkStatus, setBulkStatus] = useState('')
   const [showCancelled, setShowCancelled] = useState(false)
   const [reviveItem, setReviveItem] = useState<MJOPItem | null>(null)
   const [assigningQ1, setAssigningQ1] = useState(false)
+  const [collapsedYears, setCollapsedYears] = useState<Set<number>>(new Set())
+  const [inlineEdit, setInlineEdit] = useState<{
+    itemId: number; field: 'planned_quarter' | 'planned_amount' | 'status'; value: string
+  } | null>(null)
 
   const toggleSelect = (id: number) =>
     setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const selectAll = (ids: number[]) =>
     setSelectedIds((prev) => ids.every((id) => prev.has(id)) ? new Set() : new Set(ids))
+
+  const toggleYear = (year: number) =>
+    setCollapsedYears((prev) => { const n = new Set(prev); n.has(year) ? n.delete(year) : n.add(year); return n })
+
+  const saveInline = (itemId: number, field: 'planned_quarter' | 'planned_amount' | 'status', value: string) => {
+    let data: Partial<MJOPItem> = {}
+    if (field === 'planned_quarter') data = { planned_quarter: value ? parseInt(value) : undefined }
+    else if (field === 'planned_amount') { if (!value) return; data = { planned_amount: value as unknown as string } }
+    else if (field === 'status') data = { status: value as MJOPItem['status'] }
+    updateItem.mutate({ id: itemId, data })
+    setInlineEdit(null)
+  }
 
   function addQuarters(year: number, quarter: number, steps: number): [number, number] {
     const total = year * 4 + (quarter - 1) + steps
@@ -191,6 +208,20 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+    },
+  })
+
+  const bulkStatusChange = useMutation({
+    mutationFn: async (status: string) => {
+      await Promise.all([...selectedIds].map((id) =>
+        api.patch(`/vves/${vveId}/financial/mjop/items/${id}`, { status })
+      ))
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      setSelectedIds(new Set())
+      setBulkStatus('')
     },
   })
 
@@ -332,6 +363,25 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
             >
               {bulkShift.isPending ? 'Verschuiven...' : 'Uitvoeren'}
             </button>
+            <div className="w-px h-5 bg-indigo-400 mx-1 hidden sm:block" />
+            <span className="text-sm text-indigo-200">Status</span>
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              className="bg-indigo-700 text-white text-sm rounded-lg px-2 py-1 border border-indigo-400 focus:outline-none"
+            >
+              <option value="">— kies —</option>
+              {Object.entries(STATUS_NL).filter(([v]) => v !== 'cancelled').map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => bulkStatus && bulkStatusChange.mutate(bulkStatus)}
+              disabled={!bulkStatus || bulkStatusChange.isPending}
+              className="bg-white text-indigo-700 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-50 disabled:opacity-60 transition-colors"
+            >
+              {bulkStatusChange.isPending ? 'Bezig...' : 'Toepassen'}
+            </button>
             <button onClick={() => setSelectedIds(new Set())} className="text-indigo-200 hover:text-white text-sm transition-colors">
               Annuleren
             </button>
@@ -380,13 +430,22 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
 
       {Object.entries(groupedByYear).sort(([a], [b]) => Number(a) - Number(b)).map(([year, yearItems]) => (
         <div key={year} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900">{year}</h3>
+          <button
+            onClick={() => toggleYear(Number(year))}
+            className="w-full bg-gray-50 border-b border-gray-200 px-6 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              {collapsedYears.has(Number(year))
+                ? <ChevronRight size={15} className="text-gray-400" />
+                : <ChevronDown size={15} className="text-gray-400" />}
+              <h3 className="font-semibold text-gray-900">{year}</h3>
+              <span className="text-xs text-gray-400">{yearItems.length} post{yearItems.length !== 1 ? 'en' : ''}</span>
+            </div>
             <span className="text-sm text-gray-500">
               {formatEur(yearItems.reduce((s, i) => s + parseFloat(i.planned_amount), 0))} begroot
             </span>
-          </div>
-          <table className="w-full">
+          </button>
+          {!collapsedYears.has(Number(year)) && <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
                 {isBeheerder && (
@@ -429,8 +488,50 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
                         </span>
                       ) : <span className="text-xs text-gray-400">—</span>}
                     </td>
-                    <td className="px-6 py-3 text-sm text-gray-500">{item.planned_quarter ? `Q${item.planned_quarter}` : 'Heel jaar'}</td>
-                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatEur(item.planned_amount)}</td>
+                    <td className="px-6 py-3 text-sm text-gray-500">
+                      {isBeheerder && inlineEdit?.itemId === item.id && inlineEdit.field === 'planned_quarter' ? (
+                        <select
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={(e) => saveInline(item.id, 'planned_quarter', e.target.value)}
+                          onBlur={() => setInlineEdit(null)}
+                          className="text-xs border border-primary-300 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white"
+                        >
+                          <option value="">Heel jaar</option>
+                          {[1, 2, 3, 4].map((q) => <option key={q} value={q}>Q{q}</option>)}
+                        </select>
+                      ) : (
+                        <span
+                          onClick={() => isBeheerder && setInlineEdit({ itemId: item.id, field: 'planned_quarter', value: item.planned_quarter?.toString() ?? '' })}
+                          className={isBeheerder ? 'cursor-pointer hover:text-primary-600 hover:underline decoration-dotted underline-offset-2' : ''}
+                        >
+                          {item.planned_quarter ? `Q${item.planned_quarter}` : 'Heel jaar'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                      {isBeheerder && inlineEdit?.itemId === item.id && inlineEdit.field === 'planned_amount' ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          value={inlineEdit.value}
+                          onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
+                          onBlur={() => saveInline(item.id, 'planned_amount', inlineEdit.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInline(item.id, 'planned_amount', inlineEdit.value)
+                            if (e.key === 'Escape') setInlineEdit(null)
+                          }}
+                          className="w-24 text-sm border border-primary-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => isBeheerder && setInlineEdit({ itemId: item.id, field: 'planned_amount', value: item.planned_amount })}
+                          className={isBeheerder ? 'cursor-pointer hover:text-primary-600 hover:underline decoration-dotted underline-offset-2' : ''}
+                        >
+                          {formatEur(item.planned_amount)}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-3 text-sm">
                       {item.actual_amount ? (
                         <div>
@@ -446,9 +547,26 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
                       ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-6 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[item.status]}`}>
-                        {STATUS_NL[item.status] ?? item.status}
-                      </span>
+                      {isBeheerder && inlineEdit?.itemId === item.id && inlineEdit.field === 'status' ? (
+                        <select
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={(e) => saveInline(item.id, 'status', e.target.value)}
+                          onBlur={() => setInlineEdit(null)}
+                          className="text-xs border border-primary-300 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white"
+                        >
+                          {Object.entries(STATUS_NL).filter(([v]) => v !== 'cancelled').map(([val, label]) => (
+                            <option key={val} value={val}>{label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          onClick={() => isBeheerder && setInlineEdit({ itemId: item.id, field: 'status', value: item.status })}
+                          className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[item.status]} ${isBeheerder ? 'cursor-pointer hover:opacity-75' : ''}`}
+                        >
+                          {STATUS_NL[item.status] ?? item.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3">
                       {isBeheerder && (
@@ -470,7 +588,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
                 )
               })}
             </tbody>
-          </table>
+          </table>}
         </div>
       ))}
 

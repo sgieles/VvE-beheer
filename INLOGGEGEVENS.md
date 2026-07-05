@@ -1,34 +1,22 @@
 # VvE Beheer Platform — Demo Inloggegevens
 
-URL: http://localhost:5173
+## Productie (Render)
 
-## Platform Admin
+URL: https://vve-beheer-8lda.onrender.com
 
 | Veld       | Waarde              |
 |------------|---------------------|
-| Gebruiker  | `admin`             |
-| Wachtwoord | `admin123`          |
-| Email      | admin@platform.nl   |
+| Gebruiker  | `beheerder`         |
+| Wachtwoord | `vvebeheer123`      |
 | Rol        | platform_admin      |
+| VvE        | Kinderdijkstraat 57-63 |
 
-## Beheerder (VvE De Zonnehof)
-
-| Veld       | Waarde                    |
-|------------|---------------------------|
-| Gebruiker  | `beheerder`               |
-| Wachtwoord | `beheerder123`            |
-| Email      | beheerder@zonnehof.nl     |
-| Rol        | beheerder                 |
-| Appartement| A01 — Zonnelaan 1A        |
-| Aandeel    | 20%                       |
-
-## Eigenaren (VvE De Zonnehof)
-
-| Gebruiker   | Wachtwoord     | Naam           | Appartement | Aandeel |
-|-------------|----------------|----------------|-------------|---------|
-| `eigenaar1` | `eigenaar123`  | Marie Janssen  | A02         | 40%     |
-| `eigenaar2` | `eigenaar123`  | Piet Pietersen | A03         | 40%     |
+> Deze gebruiker wordt automatisch aangemaakt bij elke opstart als die nog niet bestaat.
 
 ---
 
-> Demo VvE: **VvE De Zonnehof** — Zonnelaan 1, 1234 AB Amsterdam
+## Lokaal (dev server)
+
+URL: http://localhost:5173
+
+Zelfde credentials als productie — de seed draait ook lokaal.

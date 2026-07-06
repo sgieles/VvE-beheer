@@ -155,7 +155,17 @@ def create_mjop_item(
         MJOPUpload.vve_id == vve_id, MJOPUpload.status == "active"
     ).order_by(MJOPUpload.uploaded_at.desc()).first()
     if not active_upload:
-        raise HTTPException(status_code=400, detail="Geen actief MJOP aanwezig. Upload eerst een MJOP.")
+        # Maak automatisch een "handmatig" uploadrecord aan als er geen actieve bestaat
+        active_upload = MJOPUpload(
+            vve_id=vve_id,
+            original_filename="Handmatig ingevoerd",
+            stored_filename="manual",
+            status="active",
+            uploaded_by_id=current_user.id,
+        )
+        db.add(active_upload)
+        db.commit()
+        db.refresh(active_upload)
     item = MJOPItem(vve_id=vve_id, mjop_upload_id=active_upload.id, **data.model_dump())
     db.add(item)
     db.commit()
@@ -183,6 +193,81 @@ def update_mjop_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+# --- MJOP export ---
+
+@router.get("/mjop/export")
+def export_mjop(vve_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Exporteer actieve MJOP-posten als Excel-bestand."""
+    import io
+    from fastapi.responses import StreamingResponse
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    _check_vve_access(vve_id, current_user, db)
+
+    active_upload = db.query(MJOPUpload).filter(
+        MJOPUpload.vve_id == vve_id, MJOPUpload.status == "active"
+    ).order_by(MJOPUpload.uploaded_at.desc()).first()
+
+    items: list[MJOPItem] = []
+    if active_upload:
+        items = db.query(MJOPItem).filter(
+            MJOPItem.mjop_upload_id == active_upload.id,
+            MJOPItem.status != "cancelled",
+        ).order_by(MJOPItem.planned_year, MJOPItem.planned_quarter).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "MJOP"
+
+    header_fill = PatternFill(start_color="1E3A5F", end_color="1E3A5F", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    headers = ["Jaar", "Kwartaal", "Omschrijving", "Categorie", "Begroot (€)", "Werkelijk (€)", "Status"]
+    col_widths = [8, 10, 45, 16, 14, 14, 14]
+
+    for col, (h, w) in enumerate(zip(headers, col_widths), 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    STATUS_NL = {"planned": "Gepland", "quoted": "Offerte", "approved": "Goedgekeurd",
+                 "completed": "Afgerond", "cancelled": "Geannuleerd"}
+
+    for row_idx, item in enumerate(items, 2):
+        ws.cell(row=row_idx, column=1, value=item.planned_year)
+        ws.cell(row=row_idx, column=2, value=f"Q{item.planned_quarter}" if item.planned_quarter else "—")
+        ws.cell(row=row_idx, column=3, value=item.description)
+        ws.cell(row=row_idx, column=4, value=item.category or "—")
+        ws.cell(row=row_idx, column=5, value=float(item.planned_amount))
+        ws.cell(row=row_idx, column=6, value=float(item.actual_amount) if item.actual_amount else None)
+        ws.cell(row=row_idx, column=7, value=STATUS_NL.get(item.status, item.status))
+
+        # Zebra-stripes
+        if row_idx % 2 == 0:
+            fill = PatternFill(start_color="F0F4FF", end_color="F0F4FF", fill_type="solid")
+            for col in range(1, 8):
+                ws.cell(row=row_idx, column=col).fill = fill
+
+    # Eurobedragen opmaken
+    euro_fmt = '€ #,##0'
+    for row_idx in range(2, len(items) + 2):
+        ws.cell(row=row_idx, column=5).number_format = euro_fmt
+        ws.cell(row=row_idx, column=6).number_format = euro_fmt
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=MJOP_export.xlsx"},
+    )
 
 
 # --- Offertes ---

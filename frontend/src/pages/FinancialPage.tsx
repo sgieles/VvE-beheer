@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { MJOPItem, ContributionPlan, ReserveFondsCombinedEntry } from '@/types'
 import { Tooltip, PieChart, Pie, Cell } from 'recharts'
-import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 
@@ -142,6 +142,28 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
       setEditItem(null)
     },
   })
+
+  const [showAddForm, setShowAddForm] = useState(false)
+
+  const addItem = useMutation({
+    mutationFn: (data: { description: string; category?: string; planned_year: number; planned_quarter?: number; planned_amount: string }) =>
+      api.post(`/vves/${vveId}/financial/mjop/items`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      setShowAddForm(false)
+    },
+  })
+
+  const handleExport = async () => {
+    const resp = await api.get(`/vves/${vveId}/financial/mjop/export`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([resp.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'MJOP_export.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkMode, setBulkMode] = useState<'jaar' | 'kwartaal'>('jaar')
@@ -396,28 +418,46 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
         </div>
       )}
 
-      {isBeheerder && (
-        <div className="flex gap-3 flex-wrap">
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.xlsm,.pdf" onChange={handleFileUpload} className="hidden" />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
-          >
-            <Upload size={16} />
-            {uploading ? 'Verwerken...' : 'MJOP uploaden (Excel/PDF)'}
-          </button>
-          {noQuarterCount > 0 && (
+      <div className="flex gap-3 flex-wrap">
+        {isBeheerder && (
+          <>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.xlsm,.pdf" onChange={handleFileUpload} className="hidden" />
             <button
-              onClick={assignQ1}
-              disabled={assigningQ1}
-              className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors disabled:opacity-60"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
             >
-              {assigningQ1 ? 'Bezig...' : `Wijs Q1 toe aan ${noQuarterCount} post${noQuarterCount !== 1 ? 'en' : ''} zonder kwartaal`}
+              <Upload size={16} />
+              {uploading ? 'Verwerken...' : 'MJOP uploaden (Excel/PDF)'}
             </button>
-          )}
-        </div>
-      )}
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+            >
+              <Plus size={16} />
+              Post toevoegen
+            </button>
+          </>
+        )}
+        {items.length > 0 && (
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors ml-auto"
+          >
+            <Download size={16} />
+            Exporteren
+          </button>
+        )}
+        {isBeheerder && noQuarterCount > 0 && (
+          <button
+            onClick={assignQ1}
+            disabled={assigningQ1}
+            className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors disabled:opacity-60"
+          >
+            {assigningQ1 ? 'Bezig...' : `Wijs Q1 toe aan ${noQuarterCount} post${noQuarterCount !== 1 ? 'en' : ''} zonder kwartaal`}
+          </button>
+        )}
+      </div>
 
       {isLoading && <MJOPSkeleton />}
 
@@ -647,6 +687,14 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
         </div>
       )}
 
+      {showAddForm && (
+        <MJOPItemAddModal
+          onClose={() => setShowAddForm(false)}
+          onSave={(data) => addItem.mutate(data)}
+          isSaving={addItem.isPending}
+        />
+      )}
+
       {editItem && (
         <MJOPItemEditModal
           item={editItem}
@@ -665,6 +713,105 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
           }}
         />
       )}
+    </div>
+  )
+}
+
+function MJOPItemAddModal({ onClose, onSave, isSaving }: {
+  onClose: () => void
+  onSave: (data: { description: string; category?: string; planned_year: number; planned_quarter?: number; planned_amount: string }) => void
+  isSaving: boolean
+}) {
+  const thisYear = new Date().getFullYear()
+  const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
+  const [year, setYear] = useState(thisYear.toString())
+  const [quarter, setQuarter] = useState('')
+  const [amount, setAmount] = useState('')
+
+  const canSave = description.trim().length > 0 && year && parseFloat(amount) > 0
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h2 className="text-lg font-semibold mb-4">Post toevoegen</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving *</label>
+            <input
+              autoFocus
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="bijv. Dakbedekking vervangen"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Jaar *</label>
+              <input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Kwartaal</label>
+              <select
+                value={quarter}
+                onChange={(e) => setQuarter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              >
+                <option value="">Heel jaar</option>
+                {[1, 2, 3, 4].map((q) => <option key={q} value={q}>Q{q}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Begroot bedrag (€) *</label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Categorie</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              >
+                <option value="">— onbekend —</option>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">
+            Annuleren
+          </button>
+          <button
+            disabled={!canSave || isSaving}
+            onClick={() => onSave({
+              description: description.trim(),
+              category: category || undefined,
+              planned_year: parseInt(year),
+              planned_quarter: quarter ? parseInt(quarter) : undefined,
+              planned_amount: amount,
+            })}
+            className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium disabled:opacity-50"
+          >
+            {isSaving ? 'Opslaan...' : 'Toevoegen'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

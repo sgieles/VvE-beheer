@@ -45,6 +45,7 @@ function toChartRows(rows: AdjRow[], useLabel: boolean): ChartRow[] {
 export default function DashboardPage() {
   const { user, activeVveId } = useAuthStore()
   const vveId = activeVveId
+  const isBeheerder = user?.role === 'beheerder' || user?.role === 'platform_admin'
   const [yearRange, setYearRange] = useState<YearRange>(10)
   const [inflatie, setInflatie] = useState(0)
   const [granularity, setGranularity] = useState<Granularity>('jaar')
@@ -101,6 +102,13 @@ export default function DashboardPage() {
 
   const hasShortfalls = (dashboard?.shortfalls?.length ?? 0) > 0
   const periodeLabel = dashboard?.contribution_frequency === 'monthly' ? 'maand' : 'kwartaal'
+
+  // Eigenaar: eigen bijdrage op basis van aandeel
+  const eigenaarAandeel = user?.aandeel ? parseInt(user.aandeel) : null
+  const eigenaarBijdrage =
+    eigenaarAandeel && dashboard?.bijdrage_per_eenheid
+      ? eigenaarAandeel * dashboard.bijdrage_per_eenheid
+      : null
   const allChartData: ChartRow[] = granularity === 'kwartaal'
     ? toChartRows(adjQuarterly, true)
     : toChartRows(adjYearly, false)
@@ -147,6 +155,25 @@ export default function DashboardPage() {
               Tekorten verwacht in{' '}
               {dashboard?.shortfalls.map((s) => s.year).join(', ')}.{' '}
               <Link to="/financial" className="underline font-medium">Bekijk scenario's →</Link>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Eigenaar: persoonlijke bijdrage-card */}
+      {!isBeheerder && eigenaarBijdrage != null && (
+        <div className="bg-primary-50 border border-primary-200 rounded-xl p-5 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-primary-700">Uw bijdrage aan het reservefonds</p>
+            <p className="text-3xl font-bold text-primary-900 mt-1">{formatEurFull(eigenaarBijdrage)}</p>
+            <p className="text-sm text-primary-600 mt-0.5">
+              per {periodeLabel} — aandeel {eigenaarAandeel}/{dashboard?.share_denominator ?? '…'}
+            </p>
+          </div>
+          <div className="text-right hidden sm:block">
+            <p className="text-xs text-primary-500 uppercase tracking-wider font-medium">Jaarlijks</p>
+            <p className="text-xl font-semibold text-primary-800 mt-0.5">
+              {formatEurFull(eigenaarBijdrage * (dashboard?.contribution_frequency === 'monthly' ? 12 : 4))}
             </p>
           </div>
         </div>
@@ -205,12 +232,14 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <h2 className="text-base font-semibold text-gray-900">Prognose reservefonds</h2>
-              <button
-                onClick={() => setShowSimForm(true)}
-                className="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-300 hover:border-orange-400 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition-colors"
-              >
-                <Plus size={12} /> Simuleer extra kost
-              </button>
+              {isBeheerder && (
+                <button
+                  onClick={() => setShowSimForm(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-300 hover:border-orange-400 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  <Plus size={12} /> Simuleer extra kost
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-4 flex-wrap">
               {/* Granulariteit toggle */}

@@ -247,3 +247,82 @@ export interface MeetingMinutes {
   approved_at?: string
   approved_by_id?: number
 }
+
+export interface Announcement {
+  id: number
+  vve_id: number
+  title: string
+  content?: string
+  is_pinned: boolean
+  created_by_id: number
+  created_at: string
+}
+
+export interface Melding {
+  id: number
+  vve_id: number
+  title: string
+  description?: string
+  category: string
+  urgency: 'laag' | 'normaal' | 'hoog' | 'spoed'
+  status: 'nieuw' | 'in_behandeling' | 'opgelost' | 'afgesloten'
+  photo_path?: string
+  reporter_id: number
+  assigned_to_id?: number
+  notes?: string
+  reported_at: string
+  resolved_at?: string
+}
+
+export interface MeldingStats {
+  nieuw: number
+  in_behandeling: number
+  opgelost: number
+  afgesloten: number
+  spoed: number
+}
+
+export interface ContributionPayment {
+  id: number
+  vve_id: number
+  appartement_id: number
+  period_year: number
+  period_period: number
+  expected_amount: string
+  paid_amount?: string
+  paid_at?: string
+  notes?: string
+  created_at: string
+}
+
+export interface PaymentSummary {
+  total_expected: number
+  total_paid: number
+  overdue: number
+  pending: number
+  pct_paid: number
+}
+
+export interface ActionItem {
+  id: number
+  vve_id: number
+  meeting_id?: number
+  title: string
+  description?: string
+  assigned_to_id?: number
+  due_date?: string
+  status: 'open' | 'in_progress' | 'done'
+  created_by_id: number
+  created_at: string
+}
+
+export interface VvEDocument {
+  id: number
+  vve_id: number
+  title: string
+  description?: string
+  original_filename: string
+  category: string
+  uploaded_by_id: number
+  uploaded_at: string
+}

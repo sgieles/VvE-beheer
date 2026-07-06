@@ -1200,6 +1200,8 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ amount_per_period: '', effective_from: '', notes: '' })
+  const [editPlan, setEditPlan] = useState<ContributionPlan | null>(null)
+  const [editForm, setEditForm] = useState({ effective_to: '', notes: '' })
 
   const { data: plans = [] } = useQuery<ContributionPlan[]>({
     queryKey: ['contributions', vveId],
@@ -1211,6 +1213,36 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
     mutationFn: (data: typeof form) => api.post(`/vves/${vveId}/financial/contributions`, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['contributions', vveId] }); qc.invalidateQueries({ queryKey: ['dashboard', vveId] }); setShowForm(false) },
   })
+
+  const updatePlan = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { effective_to: string | null; notes: string | null } }) =>
+      api.patch(`/vves/${vveId}/financial/contributions/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contributions', vveId] })
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      qc.invalidateQueries({ queryKey: ['reservefonds', vveId] })
+      setEditPlan(null)
+    },
+  })
+
+  function openEdit(p: ContributionPlan) {
+    setEditPlan(p)
+    setEditForm({
+      effective_to: p.effective_to ?? '',
+      notes: p.notes ?? '',
+    })
+  }
+
+  function handleUpdatePlan() {
+    if (!editPlan) return
+    updatePlan.mutate({
+      id: editPlan.id,
+      data: {
+        effective_to: editForm.effective_to || null,
+        notes: editForm.notes || null,
+      },
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -1226,7 +1258,7 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {['Bedrag per periode', 'Geldig vanaf', 'Geldig t/m', 'Notitie'].map((h) => (
+              {['Bedrag per periode', 'Geldig vanaf', 'Geldig t/m', 'Notitie', ...(isBeheerder ? [''] : [])].map((h) => (
                 <th key={h} className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">{h}</th>
               ))}
             </tr>
@@ -1234,7 +1266,7 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
           <tbody className="divide-y divide-gray-100">
             {plans.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center">
+                <td colSpan={isBeheerder ? 5 : 4} className="px-6 py-12 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-1">
                       <Plus size={18} className="text-gray-400" />
@@ -1267,6 +1299,17 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
                       : <span className="text-green-600 font-medium">—</span>}
                   </td>
                   <td className="px-6 py-3 text-sm text-gray-500">{p.notes ?? '—'}</td>
+                  {isBeheerder && (
+                    <td className="px-6 py-3">
+                      <button
+                        onClick={() => openEdit(p)}
+                        className="text-gray-400 hover:text-primary-600 transition-colors"
+                        title="Bewerken"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -1298,6 +1341,50 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowForm(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Annuleren</button>
               <button onClick={() => addPlan.mutate(form)} className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium">Opslaan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editPlan && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold mb-1">Bijdrageplan bewerken</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {formatEur(editPlan.amount_per_period)} — geldig vanaf {format(new Date(editPlan.effective_from), 'd MMM yyyy', { locale: nl })}
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Geldig t/m</label>
+                <input
+                  type="date"
+                  value={editForm.effective_to}
+                  onChange={(e) => setEditForm((f) => ({ ...f, effective_to: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">Leeg laten = plan heeft geen einddatum (actief)</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notitie</label>
+                <input
+                  type="text"
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEditPlan(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">
+                Annuleren
+              </button>
+              <button
+                onClick={handleUpdatePlan}
+                disabled={updatePlan.isPending}
+                className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium disabled:opacity-50"
+              >
+                {updatePlan.isPending ? 'Opslaan...' : 'Opslaan'}
+              </button>
             </div>
           </div>
         </div>

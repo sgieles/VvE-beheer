@@ -9,6 +9,12 @@ import FinancialPage from '@/pages/FinancialPage'
 import MeetingsPage from '@/pages/MeetingsPage'
 import AdminPage from '@/pages/AdminPage'
 import InfoPage from '@/pages/InfoPage'
+import DocumentsPage from '@/pages/DocumentsPage'
+import SettingsPage from '@/pages/SettingsPage'
+import RapportPage from '@/pages/RapportPage'
+import TakenPage from '@/pages/TakenPage'
+import BetalingenPage from '@/pages/BetalingenPage'
+import MeldingenPage from '@/pages/MeldingenPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -35,6 +41,12 @@ export default function App() {
           <Route path="meetings" element={<MeetingsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="info" element={<InfoPage />} />
+          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="instellingen" element={<SettingsPage />} />
+          <Route path="rapport" element={<RapportPage />} />
+          <Route path="taken" element={<TakenPage />} />
+          <Route path="betalingen" element={<BetalingenPage />} />
+          <Route path="meldingen" element={<MeldingenPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

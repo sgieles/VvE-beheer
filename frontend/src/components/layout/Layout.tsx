@@ -5,7 +5,7 @@ import api from '@/services/api'
 import type { User, VvE } from '@/types'
 import {
   LayoutDashboard, Home, TrendingUp, CalendarDays, LogOut,
-  Building2, ChevronDown, ShieldCheck, Info,
+  Building2, ChevronDown, ShieldCheck, Info, FolderOpen, Settings, Users, FileBarChart2, ClipboardList, CreditCard, Wrench,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
@@ -14,6 +14,12 @@ const navItems = [
   { to: '/appartementen', label: 'Appartementen', icon: Home },
   { to: '/financial', label: 'Financieel', icon: TrendingUp },
   { to: '/meetings', label: 'Vergaderingen', icon: CalendarDays },
+  { to: '/documents', label: 'Documenten', icon: FolderOpen },
+  { to: '/members', label: 'Leden', icon: Users },
+  { to: '/meldingen', label: 'Meldingen', icon: Wrench },
+  { to: '/betalingen', label: 'Betalingen', icon: CreditCard },
+  { to: '/taken', label: 'Actiepunten', icon: ClipboardList },
+  { to: '/rapport', label: 'Rapport', icon: FileBarChart2 },
 ]
 
 export default function Layout() {
@@ -105,7 +111,20 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 space-y-1">
+          <NavLink
+            to="/instellingen"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`
+            }
+          >
+            <Settings size={18} />
+            Instellingen
+          </NavLink>
           <NavLink
             to="/info"
             className={({ isActive }) =>

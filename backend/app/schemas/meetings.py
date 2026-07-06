@@ -44,6 +44,12 @@ class AgendaItemOrder(BaseModel):
     item_ids: list[int]  # volgorde bepaalt order_index
 
 
+class MeetingUpdate(BaseModel):
+    status: str | None = None
+    title: str | None = None
+    location: str | None = None
+
+
 class MinutesCreate(BaseModel):
     content: str | None = None
 

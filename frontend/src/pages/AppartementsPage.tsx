@@ -114,8 +114,9 @@ export default function AppartementsPage() {
         effective_from: datum,
         notes: `${(amount / shareDenominator).toFixed(2).replace('.', ',')} per 1/${shareDenominator} aandeel per ${periodeLabel}`,
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ['dashboard', vveId] })
+      qc.invalidateQueries({ queryKey: ['contributions', vveId] })
       setShowBijdrageEdit(false)
     },
   })

@@ -9,7 +9,7 @@ from app.core.dependencies import (
     get_current_user, get_current_beheerder, get_current_platform_admin,
     require_vve_access, get_accessible_vve_ids,
 )
-from app.schemas.users import UserCreate, UserUpdate, UserOut, VvECreate, VvEOut
+from app.schemas.users import UserCreate, UserUpdate, UserOut, VvECreate, VvEUpdate, VvEOut
 
 router = APIRouter(prefix="/api", tags=["users"])
 
@@ -49,7 +49,7 @@ def get_vve(vve_id: int, current_user: User = Depends(get_current_user), db: Ses
 @router.patch("/vves/{vve_id}", response_model=VvEOut)
 def update_vve(
     vve_id: int,
-    data: VvECreate,
+    data: VvEUpdate,
     current_user: User = Depends(get_current_beheerder),
     db: Session = Depends(get_db),
 ):

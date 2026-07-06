@@ -13,7 +13,7 @@ class MJOPUpload(Base):
     original_filename: Mapped[str] = mapped_column(String(300))
     stored_filename: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(
-        Enum("processing", "active", "archived", name="mjop_status_enum"),
+        Enum("processing", "active", "archived", "failed", name="mjop_status_enum"),
         default="processing",
     )
     uploaded_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

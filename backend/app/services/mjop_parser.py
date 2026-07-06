@@ -27,9 +27,12 @@ log = logging.getLogger(__name__)
 YEAR_RE = re.compile(r"\b(20\d{2})\b")
 QUARTER_RE = re.compile(r"\bQ([1-4])\b|\bkwartaal\s*([1-4])\b", re.IGNORECASE)
 
-DESC_KEYS = ("omschrijving", "beschrijving", "activiteit", "onderhoud", "element", "werkzaamheden", "description")
-AMOUNT_KEYS = ("bedrag", "kosten", "prijs", "budget", "geraamd", "amount", "cost")
-YEAR_KEYS = ("jaar", "year", "periode")
+DESC_KEYS = (
+    "omschrijving", "beschrijving", "activiteit", "onderhoud", "element",
+    "werkzaamheden", "description", "bouwdeel", "onderdeel", "maatregel", "naam", "post",
+)
+AMOUNT_KEYS = ("bedrag", "kosten", "prijs", "budget", "geraamd", "amount", "cost", "raming")
+YEAR_KEYS = ("jaar", "year", "periode", "uitvoering")
 SKIP_WORDS = ("totaal", "subtotaal", "btw", "indexering", "contingentie", "reserve")
 
 
@@ -38,16 +41,33 @@ def _normalize_amount(value) -> Decimal | None:
         return None
     try:
         s = str(value).strip()
-        s = re.sub(r"[€$\s]", "", s)
-        # Europese notatie: punt als duizendtalscheider, komma als decimaal
+        # Strip valutasymbolen en (non-breaking) whitespace
+        s = re.sub(r"[€$\s\xa0]", "", s)
+        if not s:
+            return None
+
         if "," in s and "." in s:
+            # Beide scheidingstekens aanwezig
             if s.rindex(".") < s.rindex(","):
+                # Nederlands/Duits: 1.234,56 → 1234.56
                 s = s.replace(".", "").replace(",", ".")
             else:
+                # Engels: 1,234.56 → 1234.56
                 s = s.replace(",", "")
         elif "," in s:
-            s = s.replace(",", ".")
-        s = s.replace(".", "", s.count(".") - 1) if s.count(".") > 1 else s
+            # Alleen komma: duizendtal als gevolgd door precies 3 cijfers (1,234 = 1234)
+            # anders decimaal (1,5 = 1.5)
+            if re.search(r",\d{3}$", s):
+                s = s.replace(",", "")
+            else:
+                s = s.replace(",", ".")
+        elif "." in s:
+            # Alleen punt: duizendtal bij meerdere punten (1.234.567)
+            # of enkelvoudige punt gevolgd door precies 3 cijfers (1.121 = 1121 in NL)
+            if s.count(".") > 1 or re.search(r"\.\d{3}$", s):
+                s = s.replace(".", "")
+            # anders decimaal (1.5, 1.50)
+
         v = Decimal(s)
         return v if v > 0 else None
     except (InvalidOperation, ValueError):
@@ -397,34 +417,60 @@ def parse_excel(file_path: str) -> list[dict]:
     desc_col = _find_col(header, DESC_KEYS)
     amount_col = _find_col(header, AMOUNT_KEYS)
 
-    items = []
-    for _, row in df.iterrows():
-        vals = list(row)
-        if _is_skip_row(vals):
-            continue
+    year_col_idx = _find_col(header, YEAR_KEYS)
 
-        if year_cols:
-            # Breed formaat
-            desc = str(vals[desc_col] or "").strip() if desc_col is not None else ""
+    items: list[dict] = []
+
+    if year_cols:
+        # Breed formaat: jaar staat als kolomkop (2026, 2027, ...)
+        # Fallback: als desc_col niet gevonden, zoek eerste tekst-kolom die geen jaar/getal is
+        effective_desc_col = desc_col
+        if effective_desc_col is None:
+            for i, h in enumerate(header):
+                if i not in year_cols and not any(k in h for k in AMOUNT_KEYS) and h not in ("nr", "id", "#"):
+                    effective_desc_col = i
+                    break
+
+        for _, row in df.iterrows():
+            vals = list(row)
+            if _is_skip_row(vals):
+                continue
+            desc = str(vals[effective_desc_col] or "").strip() if effective_desc_col is not None and effective_desc_col < len(vals) else ""
+            if len(desc) < 3:
+                continue
             for col_i, year in year_cols.items():
                 if col_i < len(vals):
                     amount = _normalize_amount(vals[col_i])
-                    if amount and len(desc) > 2:
+                    if amount:
                         items.append({"planned_year": year, "planned_quarter": None,
                                       "description": desc[:200], "planned_amount": amount, "category": None})
-        elif desc_col and amount_col:
-            # Lang formaat
-            year_val = str(vals[0] or "") if len(vals) > 0 else ""
-            m = YEAR_RE.search(year_val)
-            if not m:
+
+    elif desc_col is not None and amount_col is not None:
+        # Lang formaat: jaar staat als rijwaarde in een jaarkolom
+        # Jaar kan per groep slechts op de eerste rij ingevuld zijn (carry-forward)
+        yr_idx = year_col_idx if year_col_idx is not None else 0
+        last_year: int | None = None
+        last_quarter: int | None = None
+
+        for _, row in df.iterrows():
+            vals = list(row)
+            if _is_skip_row(vals):
                 continue
-            year = int(m.group(1))
-            qm = QUARTER_RE.search(year_val)
-            quarter = int(qm.group(1) or qm.group(2)) if qm else None
-            desc = str(vals[desc_col] or "").strip()
-            amount = _normalize_amount(vals[amount_col])
+
+            year_val = str(vals[yr_idx] or "").strip() if yr_idx < len(vals) else ""
+            m = YEAR_RE.search(year_val)
+            if m:
+                last_year = int(m.group(1))
+                qm = QUARTER_RE.search(year_val)
+                last_quarter = int(qm.group(1) or qm.group(2)) if qm else None
+            elif last_year is None:
+                continue  # nog geen jaar bekend
+            # anders: carry-forward van last_year / last_quarter
+
+            desc = str(vals[desc_col] or "").strip() if desc_col < len(vals) else ""
+            amount = _normalize_amount(vals[amount_col]) if amount_col < len(vals) else None
             if amount and len(desc) > 2:
-                items.append({"planned_year": year, "planned_quarter": quarter,
+                items.append({"planned_year": last_year, "planned_quarter": last_quarter,
                               "description": desc[:200], "planned_amount": amount, "category": None})
 
     return _normalize_items(items)

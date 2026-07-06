@@ -69,17 +69,19 @@ def _run_migrations():
             except Exception:
                 conn.rollback()
 
-    # PostgreSQL: voeg 'cancelled' toe aan de MJOP-item status enum
-    # (moet buiten transactie draaien; SQLite sloeg deze stap over)
+    # PostgreSQL: voeg enum-waarden toe die later zijn toegevoegd
+    # (moet buiten transactie draaien; SQLite slaat deze stap over)
     from app.core.config import settings
     if not settings.DATABASE_URL.startswith("sqlite"):
-        try:
-            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-                conn.execute(text(
-                    "ALTER TYPE mjop_item_status_enum ADD VALUE IF NOT EXISTS 'cancelled'"
-                ))
-        except Exception:
-            pass
+        for enum_stmt in [
+            "ALTER TYPE mjop_item_status_enum ADD VALUE IF NOT EXISTS 'cancelled'",
+            "ALTER TYPE mjop_status_enum ADD VALUE IF NOT EXISTS 'failed'",
+        ]:
+            try:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                    conn.execute(text(enum_stmt))
+            except Exception:
+                pass
 
 
 def _seed_demo_data_if_needed():

@@ -9,7 +9,7 @@ from app.models.meeting import Meeting, AgendaItem, MeetingMinutes
 from app.core.dependencies import get_current_user, get_current_beheerder, require_vve_access
 from app.core.config import settings
 from app.schemas.meetings import (
-    MeetingCreate, MeetingOut,
+    MeetingCreate, MeetingUpdate, MeetingOut,
     AgendaItemCreate, AgendaItemOut, AgendaItemOrder,
     MinutesCreate, MinutesOut,
 )
@@ -50,6 +50,28 @@ def get_meeting(vve_id: int, meeting_id: int, current_user: User = Depends(get_c
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.vve_id == vve_id).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Vergadering niet gevonden")
+    return meeting
+
+
+@router.patch("/{meeting_id}", response_model=MeetingOut)
+def update_meeting(
+    vve_id: int,
+    meeting_id: int,
+    data: MeetingUpdate,
+    current_user: User = Depends(get_current_beheerder),
+    db: Session = Depends(get_db),
+):
+    _check_vve_access(vve_id, current_user, db)
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.vve_id == vve_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Vergadering niet gevonden")
+    allowed_statuses = {"planned", "in_progress", "completed"}
+    for field, value in data.model_dump(exclude_none=True).items():
+        if field == "status" and value not in allowed_statuses:
+            raise HTTPException(status_code=400, detail=f"Ongeldige status: {value}")
+        setattr(meeting, field, value)
+    db.commit()
+    db.refresh(meeting)
     return meeting
 
 

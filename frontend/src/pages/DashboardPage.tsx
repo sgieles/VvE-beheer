@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type {
   FinancialDashboard, BalanceRow, QuarterRow,
   ScenarioResult, ScenarioContributionIncrease, ScenarioDeferActivity, ScenarioOneTimeLevy,
+  SmartPlanResult, Announcement, Meeting, MeldingStats,
 } from '@/types'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
-import { TrendingUp, TrendingDown, AlertTriangle, AlertOctagon, Home, CheckCircle, Clock, Zap, Plus, X } from 'lucide-react'
+import { TrendingUp, TrendingDown, AlertTriangle, AlertOctagon, Home, CheckCircle, Clock, Zap, Plus, X, Wand2, ChevronDown, ChevronUp, Megaphone, Pin, Trash2, CalendarDays, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 function formatEur(v: number) {
@@ -53,7 +54,47 @@ export default function DashboardPage() {
   const [showSimForm, setShowSimForm] = useState(false)
   const [simForm, setSimForm] = useState({ description: '', year: new Date().getFullYear(), amount: '' })
   const [savingSimulatie, setSavingSimulatie] = useState(false)
+  const [showSlimPlan, setShowSlimPlan] = useState(false)
+  const [showBijdrageTable, setShowBijdrageTable] = useState(false)
+  const [showAnnForm, setShowAnnForm] = useState(false)
+  const [annForm, setAnnForm] = useState({ title: '', content: '', is_pinned: false })
   const qc = useQueryClient()
+
+  const { data: announcements = [] } = useQuery<Announcement[]>({
+    queryKey: ['announcements', vveId],
+    queryFn: () => api.get(`/vves/${vveId}/announcements`).then((r) => r.data),
+    enabled: !!vveId,
+  })
+
+  const createAnn = useMutation({
+    mutationFn: () => api.post(`/vves/${vveId}/announcements`, annForm),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['announcements', vveId] })
+      setAnnForm({ title: '', content: '', is_pinned: false })
+      setShowAnnForm(false)
+    },
+  })
+
+  const deleteAnn = useMutation({
+    mutationFn: (id: number) => api.delete(`/vves/${vveId}/announcements/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['announcements', vveId] }),
+  })
+
+  const { data: meetings = [] } = useQuery<Meeting[]>({
+    queryKey: ['meetings', vveId],
+    queryFn: () => api.get(`/vves/${vveId}/meetings`).then((r) => r.data),
+    enabled: !!vveId,
+  })
+
+  const { data: meldingStats } = useQuery<MeldingStats>({
+    queryKey: ['meldingen-stats', vveId],
+    queryFn: () => api.get(`/vves/${vveId}/meldingen/stats`).then((r) => r.data),
+    enabled: !!vveId,
+  })
+
+  const upcomingMeeting = meetings
+    .filter((m) => m.status === 'planned' && new Date(m.meeting_date) > new Date())
+    .sort((a, b) => new Date(a.meeting_date).getTime() - new Date(b.meeting_date).getTime())[0]
 
   const { data: dashboard } = useQuery<FinancialDashboard>({
     queryKey: ['dashboard', vveId, inflatie],
@@ -126,6 +167,152 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500 mt-1">Welkom, {user?.full_name ?? user?.username}</p>
       </div>
+
+      {/* Quick-info balk */}
+      {(upcomingMeeting || (meldingStats && (meldingStats.nieuw + meldingStats.in_behandeling > 0))) && (
+        <div className="flex flex-wrap gap-3 mb-6">
+          {upcomingMeeting && (
+            <Link
+              to="/meetings"
+              className="flex items-center gap-3 bg-white border border-primary-200 hover:border-primary-400 rounded-xl px-4 py-3 transition-colors group"
+            >
+              <div className="w-9 h-9 bg-primary-50 rounded-lg flex items-center justify-center shrink-0">
+                <CalendarDays size={18} className="text-primary-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Aankomende vergadering</p>
+                <p className="text-sm font-semibold text-gray-900 group-hover:text-primary-700">
+                  {upcomingMeeting.title}
+                </p>
+                <p className="text-xs text-primary-600">
+                  {new Date(upcomingMeeting.meeting_date).toLocaleDateString('nl-NL', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                  })}
+                </p>
+              </div>
+            </Link>
+          )}
+          {meldingStats && (meldingStats.nieuw > 0 || meldingStats.spoed > 0) && (
+            <Link
+              to="/meldingen"
+              className="flex items-center gap-3 bg-white border border-orange-200 hover:border-orange-400 rounded-xl px-4 py-3 transition-colors group"
+            >
+              <div className="w-9 h-9 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
+                <Wrench size={18} className="text-orange-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Openstaande meldingen</p>
+                <p className="text-sm font-semibold text-gray-900 group-hover:text-orange-700">
+                  {meldingStats.nieuw} nieuw · {meldingStats.in_behandeling} in behandeling
+                </p>
+                {meldingStats.spoed > 0 && (
+                  <p className="text-xs text-red-600 font-medium">{meldingStats.spoed} spoed</p>
+                )}
+              </div>
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Aankondigingen */}
+      {(announcements.length > 0 || isBeheerder) && (
+        <div className="mb-6">
+          {announcements.length > 0 && (
+            <div className="space-y-3 mb-3">
+              {announcements.map((ann) => (
+                <div
+                  key={ann.id}
+                  className={`rounded-xl border px-5 py-4 flex items-start justify-between gap-4 ${
+                    ann.is_pinned
+                      ? 'bg-primary-50 border-primary-200'
+                      : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {ann.is_pinned ? (
+                      <Pin size={15} className="text-primary-500 shrink-0 mt-0.5" />
+                    ) : (
+                      <Megaphone size={15} className="text-gray-400 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className={`text-sm font-semibold ${ann.is_pinned ? 'text-primary-900' : 'text-gray-900'}`}>
+                        {ann.title}
+                      </p>
+                      {ann.content && (
+                        <p className={`text-sm mt-0.5 whitespace-pre-wrap ${ann.is_pinned ? 'text-primary-700' : 'text-gray-600'}`}>
+                          {ann.content}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {isBeheerder && (
+                    <button
+                      onClick={() => deleteAnn.mutate(ann.id)}
+                      className="text-gray-300 hover:text-red-400 shrink-0 transition-colors"
+                      title="Verwijderen"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {isBeheerder && !showAnnForm && (
+            <button
+              onClick={() => setShowAnnForm(true)}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary-600 font-medium transition-colors"
+            >
+              <Plus size={12} /> Aankondiging plaatsen
+            </button>
+          )}
+          {isBeheerder && showAnnForm && (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+              <input
+                type="text"
+                value={annForm.title}
+                onChange={(e) => setAnnForm((f) => ({ ...f, title: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                placeholder="Titel aankondiging *"
+                autoFocus
+              />
+              <textarea
+                value={annForm.content}
+                onChange={(e) => setAnnForm((f) => ({ ...f, content: e.target.value }))}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
+                placeholder="Berichttekst (optioneel)"
+              />
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={annForm.is_pinned}
+                    onChange={(e) => setAnnForm((f) => ({ ...f, is_pinned: e.target.checked }))}
+                    className="accent-primary-600"
+                  />
+                  Vastpinnen bovenaan
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowAnnForm(false); setAnnForm({ title: '', content: '', is_pinned: false }) }}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    disabled={!annForm.title || createAnn.isPending}
+                    onClick={() => createAnn.mutate()}
+                    className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
+                  >
+                    Plaatsen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Vroege waarschuwing — urgent rood */}
       {dashboard?.vroege_waarschuwing && (
@@ -212,16 +399,96 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Bijdrage per appartement (beheerder) */}
+      {isBeheerder && (dashboard?.bijdrage_per_appartement?.length ?? 0) > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+          <button
+            onClick={() => setShowBijdrageTable((v) => !v)}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Home size={16} className="text-gray-500" />
+              <span className="text-sm font-semibold text-gray-900">Bijdrage per appartement</span>
+              <span className="text-xs text-gray-400">
+                ({dashboard!.bijdrage_per_appartement.length} eenheden)
+              </span>
+            </div>
+            {showBijdrageTable
+              ? <ChevronUp size={16} className="text-gray-400" />
+              : <ChevronDown size={16} className="text-gray-400" />}
+          </button>
+          {showBijdrageTable && (
+            <table className="w-full border-t border-gray-100">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Appartement</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Eigenaar</th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Aandeel</th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">
+                    Per {periodeLabel}
+                  </th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Per jaar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {dashboard!.bijdrage_per_appartement.map((a) => (
+                  <tr key={a.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{a.naam}</td>
+                    <td className="px-6 py-3 text-sm text-gray-500">{a.eigenaar_naam ?? '—'}</td>
+                    <td className="px-6 py-3 text-right text-sm text-gray-600">
+                      {a.aandeel}/{dashboard!.share_denominator}
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm font-medium text-gray-900">
+                      {formatEurFull(a.bijdrage_per_periode)}
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm text-gray-600">
+                      {formatEurFull(a.bijdrage_per_periode * (dashboard?.contribution_frequency === 'monthly' ? 12 : 4))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t border-gray-200 bg-gray-50">
+                <tr>
+                  <td colSpan={3} className="px-6 py-3 text-sm font-semibold text-gray-700">Totaal</td>
+                  <td className="px-6 py-3 text-right text-sm font-bold text-gray-900">
+                    {formatEurFull(
+                      dashboard!.bijdrage_per_appartement.reduce((s, a) => s + a.bijdrage_per_periode, 0)
+                    )}
+                  </td>
+                  <td className="px-6 py-3 text-right text-sm font-semibold text-gray-700">
+                    {formatEurFull(
+                      dashboard!.bijdrage_per_appartement.reduce((s, a) => s + a.bijdrage_per_periode, 0) *
+                        (dashboard?.contribution_frequency === 'monthly' ? 12 : 4)
+                    )}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Gezond-indicator — alleen tonen als er MJOP-data is maar geen tekorten */}
       {chartData.length > 0 && !hasShortfalls && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center gap-3">
-          <CheckCircle className="text-green-500 shrink-0" size={20} />
-          <div>
-            <p className="font-medium text-green-800">Reservefonds is financieel gezond</p>
-            <p className="text-sm text-green-700 mt-0.5">
-              Geen tekorten verwacht op basis van het huidige MJOP en bijdrageplan.
-            </p>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="text-green-500 shrink-0" size={20} />
+            <div>
+              <p className="font-medium text-green-800">Reservefonds is financieel gezond</p>
+              <p className="text-sm text-green-700 mt-0.5">
+                Geen tekorten verwacht op basis van het huidige MJOP en bijdrageplan.
+              </p>
+            </div>
           </div>
+          {isBeheerder && (
+            <button
+              onClick={() => setShowSlimPlan(true)}
+              className="shrink-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+            >
+              <Wand2 size={13} />
+              Bereken slim plan
+            </button>
+          )}
         </div>
       )}
 
@@ -230,7 +497,7 @@ export default function DashboardPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
           {/* Header met filters */}
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-base font-semibold text-gray-900">Prognose reservefonds</h2>
               {isBeheerder && (
                 <button
@@ -238,6 +505,14 @@ export default function DashboardPage() {
                   className="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-300 hover:border-orange-400 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition-colors"
                 >
                   <Plus size={12} /> Simuleer extra kost
+                </button>
+              )}
+              {isBeheerder && (
+                <button
+                  onClick={() => setShowSlimPlan(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-300 hover:border-indigo-400 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  <Wand2 size={12} /> Slim plan
                 </button>
               )}
             </div>
@@ -558,7 +833,34 @@ export default function DashboardPage() {
               />
             ))}
           </div>
+          {isBeheerder && (
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4">
+              <p className="text-xs text-gray-400">
+                Wil je tekorten automatisch oplossen door dure posten te verschuiven?
+              </p>
+              <button
+                onClick={() => setShowSlimPlan(true)}
+                className="shrink-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors"
+              >
+                <Wand2 size={14} />
+                Bereken slim plan
+              </button>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Slim plan panel */}
+      {showSlimPlan && isBeheerder && vveId && (
+        <SlimPlanPanel
+          vveId={vveId}
+          onClose={() => setShowSlimPlan(false)}
+          onAccepted={() => {
+            setShowSlimPlan(false)
+            qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+            qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
+          }}
+        />
       )}
 
       {/* Lege staat */}
@@ -722,6 +1024,234 @@ function ScenarioCard({ scenario, periodeLabel, shareDenominator }: {
   }
 
   return null
+}
+
+function SlimPlanPanel({ vveId, onClose, onAccepted }: {
+  vveId: number
+  onClose: () => void
+  onAccepted: () => void
+}) {
+  const [maxShift, setMaxShift] = useState(4)
+  const [accepting, setAccepting] = useState(false)
+
+  const { data, isLoading } = useQuery<SmartPlanResult>({
+    queryKey: ['slim-plan', vveId, maxShift],
+    queryFn: () =>
+      api.get(`/vves/${vveId}/financial/smart-plan?max_shift_quarters=${maxShift}`).then((r) => r.data),
+    enabled: !!vveId,
+  })
+
+  async function handleAccept() {
+    if (!data) return
+    setAccepting(true)
+    try {
+      for (const shift of data.proposed_shifts) {
+        await api.patch(`/vves/${vveId}/financial/mjop/items/${shift.item_id}`, {
+          planned_year: shift.proposed_year,
+          planned_quarter: shift.proposed_quarter,
+        })
+      }
+      onAccepted()
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const chartData = (() => {
+    if (!data) return []
+    const allYears = new Set([
+      ...data.original_cashflow.map((r) => r.year),
+      ...data.new_cashflow.map((r) => r.year),
+    ])
+    const origMap = Object.fromEntries(data.original_cashflow.map((r) => [r.year, r.balance]))
+    const newMap = Object.fromEntries(data.new_cashflow.map((r) => [r.year, r.balance]))
+    return [...allYears].sort().map((year) => ({
+      year: String(year),
+      origineel: Math.round(origMap[year] ?? 0),
+      nieuw: Math.round(newMap[year] ?? 0),
+    }))
+  })()
+
+  return (
+    <div className="bg-white border border-indigo-200 rounded-xl overflow-hidden mb-8">
+      <div className="px-6 py-4 border-b border-gray-100 bg-indigo-50 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <Wand2 size={16} className="text-indigo-600" />
+            Slim plan — automatische verschuivingen
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Dure MJOP-posten worden verschoven naar nabijgelegen kwartalen om tekorten op te lossen
+          </p>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-4">
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Slider */}
+      <div className="px-6 py-4 border-b border-gray-100">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Maximale verschuiving:{' '}
+          <span className="text-indigo-600 font-semibold">
+            {maxShift} kwartaal{maxShift === 1 ? '' : 'en'} ({(maxShift / 4).toFixed(2).replace(/\.?0+$/, '')} jaar)
+          </span>
+        </label>
+        <input
+          type="range"
+          min={1}
+          max={16}
+          step={1}
+          value={maxShift}
+          onChange={(e) => setMaxShift(parseInt(e.target.value))}
+          className="w-full max-w-sm accent-indigo-600"
+        />
+        <div className="flex justify-between text-xs text-gray-400 max-w-sm mt-0.5">
+          <span>1 kwartaal</span>
+          <span>4 jaar</span>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="px-6 py-10 text-center text-gray-400 text-sm">Berekenen…</div>
+      )}
+
+      {data && !isLoading && (
+        <>
+          {/* Resultaat-banner */}
+          <div className={`px-6 py-3 border-b border-gray-100 ${data.shortfalls_resolved ? 'bg-green-50' : 'bg-amber-50'}`}>
+            {data.shortfalls_resolved ? (
+              <p className="text-sm font-medium text-green-800 flex items-center gap-2">
+                <CheckCircle size={16} className="text-green-600" />
+                Alle tekorten worden opgelost met deze {data.proposed_shifts.length} verschuiving{data.proposed_shifts.length === 1 ? '' : 'en'}
+              </p>
+            ) : (
+              <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
+                <AlertTriangle size={16} className="text-amber-500" />
+                Tekorten deels opgelost — resterend in{' '}
+                {data.shortfalls_remaining.map((s) => s.year).join(', ')}.
+                Vergroot de maximale verschuiving voor een volledige oplossing.
+              </p>
+            )}
+          </div>
+
+          {/* Vergelijkingsgrafiek */}
+          {chartData.length > 0 && (
+            <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Saldo-vergelijking</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <ComposedChart data={chartData} margin={{ top: 4, right: 10, bottom: 4, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                  <YAxis
+                    tickFormatter={(v) => `€${Math.abs(v / 1000).toFixed(0)}k${v < 0 ? '-' : ''}`}
+                    tick={{ fontSize: 11 }}
+                    width={52}
+                  />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [formatEur(v), name]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} />
+                  <Line
+                    type="monotone"
+                    dataKey="origineel"
+                    name="Huidig saldo"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="nieuw"
+                    name="Saldo na verschuiving"
+                    stroke="#6366f1"
+                    strokeWidth={2.5}
+                    dot={(props) => {
+                      const { cx, cy, payload } = props
+                      if (payload.nieuw >= 0) return <g key={payload.year} />
+                      return <circle key={payload.year} cx={cx} cy={cy} r={4} fill="#ef4444" strokeWidth={0} />
+                    }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Verschuivingen tabel */}
+          {data.proposed_shifts.length > 0 ? (
+            <div>
+              <div className="px-6 pt-4 pb-2">
+                <h3 className="text-sm font-semibold text-gray-700">
+                  Voorgestelde verschuivingen ({data.proposed_shifts.length})
+                </h3>
+              </div>
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Post</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Bedrag</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Van</th>
+                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-2.5">Naar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {data.proposed_shifts.map((shift) => (
+                    <tr key={shift.item_id}>
+                      <td className="px-6 py-3 text-sm text-gray-900">
+                        {shift.description.length > 45
+                          ? shift.description.slice(0, 42) + '…'
+                          : shift.description}
+                      </td>
+                      <td className="px-6 py-3 text-right text-sm text-gray-700">
+                        {formatEur(shift.amount)}
+                      </td>
+                      <td className="px-6 py-3 text-right text-sm text-gray-500">
+                        {shift.original_year}
+                        {shift.original_quarter ? ` Q${shift.original_quarter}` : ''}
+                      </td>
+                      <td className="px-6 py-3 text-right text-sm font-medium text-indigo-700">
+                        {shift.proposed_year}
+                        {shift.proposed_quarter ? ` Q${shift.proposed_quarter}` : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="px-6 py-6 text-center text-sm text-gray-500">
+              Geen verschuivingen nodig — het MJOP is al financieel haalbaar.
+            </div>
+          )}
+
+          {/* Actieknoppen */}
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4">
+            <button
+              onClick={onClose}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Annuleren
+            </button>
+            {data.proposed_shifts.length > 0 && (
+              <button
+                onClick={handleAccept}
+                disabled={accepting}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={15} />
+                {accepting
+                  ? 'Verwerken…'
+                  : `Accepteer ${data.proposed_shifts.length} verschuiving${data.proposed_shifts.length === 1 ? '' : 'en'}`}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function KpiCard({ label, value, sublabel, icon, color }: {

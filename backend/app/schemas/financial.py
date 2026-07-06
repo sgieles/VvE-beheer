@@ -97,6 +97,11 @@ class ContributionPlanCreate(BaseModel):
     notes: str | None = None
 
 
+class ContributionPlanUpdate(BaseModel):
+    effective_to: date | None = None
+    notes: str | None = None
+
+
 class ContributionPlanOut(ContributionPlanCreate):
     id: int
     vve_id: int

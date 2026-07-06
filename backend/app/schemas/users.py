@@ -15,6 +15,14 @@ class VvECreate(VvEBase):
     pass
 
 
+class VvEUpdate(BaseModel):
+    name: str | None = None
+    address: str | None = None
+    kvk_number: str | None = None
+    contribution_frequency: str | None = None
+    share_denominator: int | None = None
+
+
 class VvEOut(VvEBase):
     id: int
     is_active: bool

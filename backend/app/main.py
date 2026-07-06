@@ -10,6 +10,11 @@ from sqlalchemy import text
 from app.database import engine, Base, SessionLocal
 from app.routers import auth, users, financial, meetings
 from app.routers import appartementen
+from app.routers import documents
+from app.routers import announcements
+from app.routers import tasks
+from app.routers import payments
+from app.routers import meldingen
 import app.models  # noqa: F401
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
@@ -239,6 +244,11 @@ app.include_router(users.router)
 app.include_router(financial.router)
 app.include_router(meetings.router)
 app.include_router(appartementen.router)
+app.include_router(documents.router)
+app.include_router(announcements.router)
+app.include_router(tasks.router)
+app.include_router(payments.router)
+app.include_router(meldingen.router)
 
 
 @app.get("/api/health")

@@ -13,7 +13,7 @@ from app.schemas.financial import (
     MJOPUploadOut, MJOPItemOut, MJOPItemCreate, MJOPItemUpdate,
     QuoteCreate, QuoteApprove, QuoteOut,
     ReserveFondsEntryCreate, ReserveFondsEntryOut,
-    ContributionPlanCreate, ContributionPlanOut,
+    ContributionPlanCreate, ContributionPlanUpdate, ContributionPlanOut,
 )
 from app.services.mjop_parser import parse_mjop_file
 from app.services.balanssheet_parser import parse_balanssheet
@@ -403,10 +403,12 @@ def list_reservefonds_combined(vve_id: int, current_user: User = Depends(get_cur
         return results
 
     contribution_rows = []
-    if real_entries and plans:
-        first_entry_date = real_entries[0].entry_date
+    if plans:
+        ref_date = real_entries[0].entry_date if real_entries else None
         for plan in plans:
-            start = max(plan.effective_from, first_entry_date)
+            if plan.effective_from > today:
+                continue
+            start = max(plan.effective_from, ref_date) if ref_date is not None else plan.effective_from
             end = min(plan.effective_to if plan.effective_to else today, today)
             for pd, desc in _payment_dates(plan, start, end):
                 contribution_rows.append({
@@ -504,6 +506,27 @@ def create_contribution_plan(
     return plan
 
 
+@router.patch("/contributions/{plan_id}", response_model=ContributionPlanOut)
+def update_contribution_plan(
+    vve_id: int,
+    plan_id: int,
+    data: ContributionPlanUpdate,
+    current_user: User = Depends(get_current_beheerder),
+    db: Session = Depends(get_db),
+):
+    _check_vve_access(vve_id, current_user, db)
+    plan = db.query(ContributionPlan).filter(
+        ContributionPlan.id == plan_id, ContributionPlan.vve_id == vve_id
+    ).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Bijdrageplan niet gevonden")
+    plan.effective_to = data.effective_to
+    plan.notes = data.notes
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
 # --- Dashboard / Scenarios ---
 
 @router.get("/dashboard")
@@ -534,9 +557,16 @@ def get_financial_dashboard(
     entries = db.query(ReserveFondsEntry).filter(ReserveFondsEntry.vve_id == vve_id).all()
     balance = sum(e.amount for e in entries) if entries else Decimal(0)
 
-    if entries and plan:
-        last_date = max(e.entry_date for e in entries)
-        balance += _bereken_auto_bijdragen(last_date, today, plan.amount_per_period, vve.contribution_frequency)
+    all_plans = db.query(ContributionPlan).filter(
+        ContributionPlan.vve_id == vve_id,
+    ).order_by(ContributionPlan.effective_from).all()
+    ref_date = max(e.entry_date for e in entries) if entries else None
+    for p in all_plans:
+        if p.effective_from > today:
+            continue
+        p_end = min(p.effective_to if p.effective_to else today, today)
+        after = max(p.effective_from, ref_date) if ref_date is not None else p.effective_from
+        balance += _bereken_auto_bijdragen(after, p_end, p.amount_per_period, vve.contribution_frequency)
 
     # MJOP items van actief upload
     active_upload = db.query(MJOPUpload).filter(
@@ -629,9 +659,17 @@ def get_smart_plan(
 
     entries = db.query(ReserveFondsEntry).filter(ReserveFondsEntry.vve_id == vve_id).all()
     balance = sum(e.amount for e in entries) if entries else Decimal(0)
-    if entries and plan:
-        last_date = max(e.entry_date for e in entries)
-        balance += _bereken_auto_bijdragen(last_date, today, plan.amount_per_period, vve.contribution_frequency)
+
+    all_plans_sp = db.query(ContributionPlan).filter(
+        ContributionPlan.vve_id == vve_id,
+    ).order_by(ContributionPlan.effective_from).all()
+    ref_date_sp = max(e.entry_date for e in entries) if entries else None
+    for p in all_plans_sp:
+        if p.effective_from > today:
+            continue
+        p_end = min(p.effective_to if p.effective_to else today, today)
+        after = max(p.effective_from, ref_date_sp) if ref_date_sp is not None else p.effective_from
+        balance += _bereken_auto_bijdragen(after, p_end, p.amount_per_period, vve.contribution_frequency)
 
     active_upload = db.query(MJOPUpload).filter(
         MJOPUpload.vve_id == vve_id, MJOPUpload.status == "active"

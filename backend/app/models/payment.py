@@ -14,7 +14,7 @@ class ContributionPayment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     vve_id: Mapped[int] = mapped_column(ForeignKey("vves.id"), index=True)
-    appartement_id: Mapped[int] = mapped_column(ForeignKey("appartements.id"), index=True)
+    appartement_id: Mapped[int] = mapped_column(ForeignKey("appartementen.id"), index=True)
     period_year: Mapped[int] = mapped_column(Integer)
     # 1–12 voor maandelijks, 1–4 voor kwartaal
     period_period: Mapped[int] = mapped_column(Integer)

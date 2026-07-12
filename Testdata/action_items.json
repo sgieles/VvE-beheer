@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "vve_id": 2,
+    "meeting_id": null,
+    "title": "actiepunt 1",
+    "description": "opvolgen ahb",
+    "assigned_to_id": null,
+    "due_date": "2026-07-31",
+    "status": "open",
+    "created_by_id": 3,
+    "created_at": "2026-07-12 19:46:40.143556+00:00"
+  },
+  {
+    "id": 2,
+    "vve_id": 2,
+    "meeting_id": 1,
+    "title": "actiepunt 2",
+    "description": "oh8e b",
+    "assigned_to_id": null,
+    "due_date": "2026-07-29",
+    "status": "open",
+    "created_by_id": 3,
+    "created_at": "2026-07-12 19:47:23.376933+00:00"
+  }
+]

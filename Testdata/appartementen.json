@@ -1,0 +1,152 @@
+[
+  {
+    "id": 1,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 57-H",
+    "nummer": "57-H",
+    "eigenaar_naam": null,
+    "aandeel": "2.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627476+00:00"
+  },
+  {
+    "id": 2,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 57-1",
+    "nummer": "57-1",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627480+00:00"
+  },
+  {
+    "id": 3,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 57-2",
+    "nummer": "57-2",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627481+00:00"
+  },
+  {
+    "id": 4,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 59-H",
+    "nummer": "59-H",
+    "eigenaar_naam": null,
+    "aandeel": "2.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627482+00:00"
+  },
+  {
+    "id": 5,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 59-1",
+    "nummer": "59-1",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627483+00:00"
+  },
+  {
+    "id": 6,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 59-2",
+    "nummer": "59-2",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627483+00:00"
+  },
+  {
+    "id": 7,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 61-H",
+    "nummer": "61-H",
+    "eigenaar_naam": null,
+    "aandeel": "2.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627484+00:00"
+  },
+  {
+    "id": 8,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 61-1",
+    "nummer": "61-1",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627485+00:00"
+  },
+  {
+    "id": 9,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 61-2",
+    "nummer": "61-2",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627485+00:00"
+  },
+  {
+    "id": 10,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 63-H",
+    "nummer": "63-H",
+    "eigenaar_naam": null,
+    "aandeel": "2.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627486+00:00"
+  },
+  {
+    "id": 11,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 63-1",
+    "nummer": "63-1",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627487+00:00"
+  },
+  {
+    "id": 12,
+    "vve_id": 2,
+    "naam": "Kinderdijkstraat 63-2",
+    "nummer": "63-2",
+    "eigenaar_naam": null,
+    "aandeel": "3.000000",
+    "is_active": true,
+    "created_at": "2026-06-28 20:30:41.627487+00:00"
+  },
+  {
+    "id": 14,
+    "vve_id": 1,
+    "naam": "test 2",
+    "nummer": "2",
+    "eigenaar_naam": "Mila",
+    "aandeel": "1.000000",
+    "is_active": true,
+    "created_at": "2026-07-06 20:28:06.409348+00:00"
+  },
+  {
+    "id": 15,
+    "vve_id": 1,
+    "naam": "test 3",
+    "nummer": "3",
+    "eigenaar_naam": "Rein",
+    "aandeel": "2.000000",
+    "is_active": true,
+    "created_at": "2026-07-06 20:29:52.714027+00:00"
+  },
+  {
+    "id": 13,
+    "vve_id": 1,
+    "naam": "Test 1",
+    "nummer": "1",
+    "eigenaar_naam": "Stan",
+    "aandeel": "1.000000",
+    "is_active": true,
+    "created_at": "2026-07-06 20:27:50.029340+00:00"
+  }
+]

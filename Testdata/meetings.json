@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "vve_id": 2,
+    "title": "test vergadering",
+    "meeting_date": "2026-07-15 09:00:00+00:00",
+    "location": "Teams",
+    "teams_url": null,
+    "teams_meeting_id": null,
+    "status": "planned",
+    "created_by_id": 2,
+    "created_at": "2026-07-06 21:06:09.126769+00:00"
+  }
+]

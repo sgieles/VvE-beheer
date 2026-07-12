@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "vve_id": 2,
+    "entry_date": "2021-01-01",
+    "amount": "45000.00",
+    "description": "Openingssaldo 2021",
+    "created_at": "2026-06-28 20:30:41.660736+00:00"
+  },
+  {
+    "id": 2,
+    "vve_id": 2,
+    "entry_date": "2026-06-27",
+    "amount": "-35000.00",
+    "description": "Correctie op fonds",
+    "created_at": "2026-06-28 20:36:37.024124+00:00"
+  },
+  {
+    "id": 3,
+    "vve_id": 2,
+    "entry_date": "2026-07-02",
+    "amount": "5000.00",
+    "description": "test",
+    "created_at": "2026-07-05 14:59:02.333158+00:00"
+  },
+  {
+    "id": 4,
+    "vve_id": 2,
+    "entry_date": "2026-07-02",
+    "amount": "-10000.00",
+    "description": "test",
+    "created_at": "2026-07-05 14:59:30.348317+00:00"
+  }
+]

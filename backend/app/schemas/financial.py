@@ -53,6 +53,11 @@ class QuoteBase(BaseModel):
     supplier_name: str
     quoted_amount: Decimal
     notes: str | None = None
+    date_received: date | None = None
+    valid_until: date | None = None
+    contact_person: str | None = None
+    contact_email: str | None = None
+    work_description: str | None = None
 
 
 class QuoteCreate(QuoteBase):
@@ -70,6 +75,7 @@ class QuoteOut(QuoteBase):
     document_path: str | None
     is_approved: bool
     approved_at: datetime | None
+    approved_by_id: int | None
     final_amount: Decimal | None
     created_at: datetime
 

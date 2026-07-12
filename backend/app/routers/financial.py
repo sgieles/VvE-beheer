@@ -2,7 +2,8 @@ import os
 import shutil
 from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
@@ -11,7 +12,7 @@ from app.core.dependencies import get_current_user, get_current_beheerder, requi
 from app.core.config import settings
 from app.schemas.financial import (
     MJOPUploadOut, MJOPItemOut, MJOPItemCreate, MJOPItemUpdate,
-    QuoteCreate, QuoteApprove, QuoteOut,
+    QuoteApprove, QuoteOut,
     ReserveFondsEntryCreate, ReserveFondsEntryOut,
     ContributionPlanCreate, ContributionPlanUpdate, ContributionPlanOut,
 )
@@ -275,18 +276,26 @@ def export_mjop(vve_id: int, current_user: User = Depends(get_current_user), db:
 @router.post("/quotes", response_model=QuoteOut, status_code=status.HTTP_201_CREATED)
 async def create_quote(
     vve_id: int,
-    data: QuoteCreate,
+    mjop_item_id: int = Form(...),
+    supplier_name: str = Form(...),
+    quoted_amount: Decimal = Form(...),
+    notes: str | None = Form(None),
+    date_received: date | None = Form(None),
+    valid_until: date | None = Form(None),
+    contact_person: str | None = Form(None),
+    contact_email: str | None = Form(None),
+    work_description: str | None = Form(None),
     file: UploadFile = File(None),
     current_user: User = Depends(get_current_beheerder),
     db: Session = Depends(get_db),
 ):
     _check_vve_access(vve_id, current_user, db)
-    item = db.query(MJOPItem).filter(MJOPItem.id == data.mjop_item_id, MJOPItem.vve_id == vve_id).first()
+    item = db.query(MJOPItem).filter(MJOPItem.id == mjop_item_id, MJOPItem.vve_id == vve_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="MJOP post niet gevonden")
 
     doc_path = None
-    if file:
+    if file and file.filename:
         upload_dir = os.path.join(settings.UPLOAD_DIR, "quotes", str(vve_id))
         os.makedirs(upload_dir, exist_ok=True)
         stored_name = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{file.filename}"
@@ -294,7 +303,19 @@ async def create_quote(
         with open(doc_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
-    quote = Quote(vve_id=vve_id, document_path=doc_path, **data.model_dump())
+    quote = Quote(
+        vve_id=vve_id,
+        mjop_item_id=mjop_item_id,
+        supplier_name=supplier_name,
+        quoted_amount=quoted_amount,
+        notes=notes or None,
+        date_received=date_received,
+        valid_until=valid_until,
+        contact_person=contact_person or None,
+        contact_email=contact_email or None,
+        work_description=work_description or None,
+        document_path=doc_path,
+    )
     db.add(quote)
     item.status = "quoted"
     db.commit()
@@ -315,13 +336,18 @@ def approve_quote(
     if not quote:
         raise HTTPException(status_code=404, detail="Offerte niet gevonden")
 
+    # Trek goedkeuring in van andere offertes voor hetzelfde item
+    db.query(Quote).filter(
+        Quote.mjop_item_id == quote.mjop_item_id,
+        Quote.id != quote_id,
+    ).update({"is_approved": False, "approved_at": None, "approved_by_id": None})
+
     quote.is_approved = True
     quote.approved_at = datetime.now(timezone.utc)
     quote.approved_by_id = current_user.id
     if data.final_amount is not None:
         quote.final_amount = data.final_amount
 
-    # Goedgekeurde offerte wordt de actual van de MJOP post
     item = db.query(MJOPItem).filter(MJOPItem.id == quote.mjop_item_id).first()
     if item:
         item.actual_amount = data.final_amount or quote.quoted_amount
@@ -330,6 +356,63 @@ def approve_quote(
     db.commit()
     db.refresh(quote)
     return quote
+
+
+@router.delete("/quotes/{quote_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_quote(
+    vve_id: int,
+    quote_id: int,
+    current_user: User = Depends(get_current_beheerder),
+    db: Session = Depends(get_db),
+):
+    _check_vve_access(vve_id, current_user, db)
+    quote = db.query(Quote).filter(Quote.id == quote_id, Quote.vve_id == vve_id).first()
+    if not quote:
+        raise HTTPException(status_code=404, detail="Offerte niet gevonden")
+
+    was_approved = quote.is_approved
+    item_id = quote.mjop_item_id
+
+    if quote.document_path and os.path.exists(quote.document_path):
+        try:
+            os.remove(quote.document_path)
+        except OSError:
+            pass
+
+    db.delete(quote)
+    db.flush()
+
+    item = db.query(MJOPItem).filter(MJOPItem.id == item_id).first()
+    if item:
+        remaining = db.query(Quote).filter(Quote.mjop_item_id == item_id).all()
+        if not remaining:
+            item.status = "planned"
+            item.actual_amount = None
+        elif any(q.is_approved for q in remaining):
+            item.status = "approved"
+        else:
+            item.status = "quoted"
+            if was_approved:
+                item.actual_amount = None
+
+    db.commit()
+
+
+@router.get("/quotes/{quote_id}/download")
+def download_quote(
+    vve_id: int,
+    quote_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _check_vve_access(vve_id, current_user, db)
+    quote = db.query(Quote).filter(Quote.id == quote_id, Quote.vve_id == vve_id).first()
+    if not quote or not quote.document_path:
+        raise HTTPException(status_code=404, detail="Bestand niet gevonden")
+    if not os.path.exists(quote.document_path):
+        raise HTTPException(status_code=404, detail="Bestand niet beschikbaar op server")
+    filename = os.path.basename(quote.document_path)
+    return FileResponse(quote.document_path, filename=filename)
 
 
 # --- Reservefonds ---

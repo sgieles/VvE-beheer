@@ -67,6 +67,11 @@ def _run_migrations():
             "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS actual_amount NUMERIC(14,2)",
             "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS manually_adjusted BOOLEAN NOT NULL DEFAULT false",
             "ALTER TABLE mjop_items ADD COLUMN IF NOT EXISTS notes TEXT",
+            "ALTER TABLE quotes ADD COLUMN IF NOT EXISTS date_received DATE",
+            "ALTER TABLE quotes ADD COLUMN IF NOT EXISTS valid_until DATE",
+            "ALTER TABLE quotes ADD COLUMN IF NOT EXISTS contact_person VARCHAR(200)",
+            "ALTER TABLE quotes ADD COLUMN IF NOT EXISTS contact_email VARCHAR(200)",
+            "ALTER TABLE quotes ADD COLUMN IF NOT EXISTS work_description TEXT",
         ]:
             try:
                 conn.execute(text(stmt))

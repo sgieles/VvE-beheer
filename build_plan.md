@@ -60,40 +60,40 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 
 ### Prioriteit 1 — Bugs (correctheidsproblemen)
 
-- [ ] **BetalingenPage: totaalrij berekent incorrect bij ongelijke aandelen**
+- [x] **BetalingenPage: totaalrij berekent incorrect bij ongelijke aandelen**
   `tfoot` gebruikt `payments[0]?.expected_amount × apps.length`. Vervang door de werkelijke som van alle `expected_amount`-waarden uit de betaalrecords.
 
-- [ ] **BetalingenPage: samenvatting laadt niet direct na "Genereer jaar"**
-  Summary-query heeft `enabled: payments.length > 0`. Na genereren zijn de records nog niet in React-state geladen. Gebruik de query-status in plaats van `payments.length`.
+- [x] **BetalingenPage: samenvatting laadt niet direct na "Genereer jaar"**
+  Summary-query had `enabled: payments.length > 0`. Na genereren zijn de records nog niet in React-state geladen. Opgelost: `enabled: !!vveId`.
 
-- [ ] **BetalingenPage: historische data ouder dan 2 jaar onbereikbaar**
-  Jaar-selector biedt alleen huidig jaar − 2 t/m volgend jaar. Vergroot het bereik of voeg een vrij invulbaar jaarveld toe.
+- [x] **BetalingenPage: historische data ouder dan 2 jaar onbereikbaar**
+  Jaar-selector uitgebreid naar 10 jaar (huidig jaar − 7 t/m huidig jaar + 2).
 
-- [ ] **MeldingenPage: onopgeslagen urgentie/notitie verdwijnt stil bij kaart sluiten**
-  Status slaat direct op, urgentie en notitie vereisen een aparte klik. Voeg een dirty-state check toe of maak alle velden uniform via één save-actie.
+- [x] **MeldingenPage: onopgeslagen urgentie/notitie verdwijnt stil bij kaart sluiten**
+  Urgentie slaat nu direct op zoals status. Alleen notitieveld heeft nog een save-knop.
 
-- [ ] **MeldingenPage: melding aanmaken stuurt lange tekst als URL query params**
-  `create_melding` leest `title`, `description`, `category`, `urgency` als query params. Verplaats naar request body (JSON of form-data, zodat foto-upload ook meegaat).
+- [x] **MeldingenPage: melding aanmaken stuurt lange tekst als URL query params**
+  Backend gebruikt nu `Form()` params; frontend verstuurt FormData inclusief foto-upload.
 
 ### Prioriteit 2 — Ontbrekende functionaliteit
 
-- [ ] **MeldingenPage: foto-upload**
-  Backend heeft `photo_path` op het Melding-model en verwerkt file-uploads al. Frontend heeft geen upload-component. Foto's zijn essentieel voor schademeldingen.
+- [x] **MeldingenPage: foto-upload**
+  Frontend heeft nu een bestandskiezer. FormData stuurt foto mee naar de backend.
 
-- [ ] **MeetingsPage: vergadering bewerkbaar na aanmaken**
-  `PATCH /meetings/{id}` bestaat al. Voeg een bewerkknop toe bij elke vergaderingskaart voor datum, locatie en titel.
+- [x] **MeetingsPage: vergadering bewerkbaar na aanmaken**
+  Bewerkknop (potlood) toegevoegd aan elke vergaderingskaart. EditMeetingModal gebruikt bestaand PATCH-endpoint.
 
-- [ ] **MeetingsPage: notulen uploaden als PDF-bestand**
-  Backend-endpoint ondersteunt `UploadFile` al naast tekst. Frontend toont alleen een tekstarea. Voeg een bestandsupload-optie toe.
+- [x] **MeetingsPage: notulen uploaden als PDF-bestand**
+  UploadMinutesForm ondersteunt nu bestandsupload (PDF/DOCX) naast tekst via FormData.
 
-- [ ] **MeetingsPage: vergadering verwijderen**
-  Geen delete-knop aanwezig. Backend CRUD is incompleet zonder verwijderen.
+- [x] **MeetingsPage: vergadering verwijderen**
+  DELETE-endpoint toegevoegd aan backend; verwijderknop toegevoegd aan vergaderingskaart.
 
-- [ ] **AppartementsPage: appartement deactiveren/activeren**
-  `Appartement.is_active` bestaat in het model maar er is geen UI-toggle. Nodig bij eigenaarswissels of leegstand.
+- [x] **AppartementsPage: appartement deactiveren/activeren**
+  Power-knop toegevoegd in de appartementen-tabel; PATCH met `{ is_active }` via bestaand endpoint.
 
-- [ ] **App-breed: 404-pagina**
-  React Router heeft geen catch-all `*`-route. Onjuiste URL's geven een lege layout. Voeg een eenvoudige 404-route toe met terugknop naar dashboard.
+- [x] **App-breed: 404-pagina**
+  NotFoundPage aangemaakt; catch-all `*`-route toegevoegd in App.tsx.
 
 - [ ] **App-breed: e-mailnotificaties**
   Eigenaar krijgt geen bericht bij nieuw betalingsverzoek, opgeloste melding of nieuwe aankondiging. SMTP-integratie als minimale stap.

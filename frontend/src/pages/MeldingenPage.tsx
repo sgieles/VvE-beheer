@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { Melding, MeldingStats } from '@/types'
-import { AlertTriangle, Wrench, Plus, ChevronDown, Trash2, MessageSquare } from 'lucide-react'
+import { AlertTriangle, Wrench, Plus, ChevronDown, Trash2, MessageSquare, Paperclip } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 
@@ -40,6 +40,8 @@ export default function MeldingenPage() {
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', category: 'overig', urgency: 'normaal' })
+  const [photo, setPhoto] = useState<File | null>(null)
+  const photoRef = useRef<HTMLInputElement>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
   const { data: meldingen = [], isLoading } = useQuery<Melding[]>({
@@ -59,18 +61,21 @@ export default function MeldingenPage() {
 
   const createMelding = useMutation({
     mutationFn: () => {
-      const params = new URLSearchParams({
-        title: form.title,
-        category: form.category,
-        urgency: form.urgency,
+      const fd = new FormData()
+      fd.append('title', form.title)
+      if (form.description) fd.append('description', form.description)
+      fd.append('category', form.category)
+      fd.append('urgency', form.urgency)
+      if (photo) fd.append('photo', photo)
+      return api.post(`/vves/${vveId}/meldingen`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
-      if (form.description) params.append('description', form.description)
-      return api.post(`/vves/${vveId}/meldingen?${params.toString()}`)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meldingen', vveId] })
       qc.invalidateQueries({ queryKey: ['meldingen-stats', vveId] })
       setForm({ title: '', description: '', category: 'overig', urgency: 'normaal' })
+      setPhoto(null)
       setShowForm(false)
     },
   })
@@ -313,6 +318,24 @@ export default function MeldingenPage() {
                   </select>
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Foto (optioneel)</label>
+                <input
+                  ref={photoRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => photoRef.current?.click()}
+                  className="flex items-center gap-2 text-sm border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50 text-gray-600"
+                >
+                  <Paperclip size={14} />
+                  {photo ? photo.name : 'Foto kiezen'}
+                </button>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setShowForm(false)}
@@ -344,8 +367,7 @@ function BeheerderActies({
   onUpdate: (data: { status?: string; notes?: string; urgency?: string }) => void
 }) {
   const [notes, setNotes] = useState(melding.notes ?? '')
-  const [urgency, setUrgency] = useState<string>(melding.urgency)
-  const [dirty, setDirty] = useState(false)
+  const [notesDirty, setNotesDirty] = useState(false)
 
   return (
     <div className="border-t border-gray-100 pt-4 space-y-3">
@@ -366,8 +388,8 @@ function BeheerderActies({
         <div>
           <label className="block text-xs text-gray-500 mb-1">Urgentie</label>
           <select
-            value={urgency}
-            onChange={(e) => { setUrgency(e.target.value); setDirty(true) }}
+            value={melding.urgency}
+            onChange={(e) => onUpdate({ urgency: e.target.value })}
             className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
           >
             {URGENCIES.map((u) => (
@@ -381,17 +403,17 @@ function BeheerderActies({
         <textarea
           rows={3}
           value={notes}
-          onChange={(e) => { setNotes(e.target.value); setDirty(true) }}
+          onChange={(e) => { setNotes(e.target.value); setNotesDirty(true) }}
           placeholder="Voeg een interne notitie toe..."
           className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
         />
       </div>
-      {dirty && (
+      {notesDirty && (
         <button
-          onClick={() => { onUpdate({ notes, urgency }); setDirty(false) }}
+          onClick={() => { onUpdate({ notes }); setNotesDirty(false) }}
           className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium"
         >
-          Wijzigingen opslaan
+          Notitie opslaan
         </button>
       )}
     </div>

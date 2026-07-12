@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { Meeting, AgendaItem, MeetingMinutes, ActionItem } from '@/types'
 import {
   Plus, CalendarPlus, ListChecks, Check, Video,
-  ChevronDown, ChevronUp, CheckCircle2, Trash2,
+  ChevronDown, ChevronUp, CheckCircle2, Trash2, Pencil, Upload,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
@@ -19,6 +19,12 @@ export default function MeetingsPage() {
   const [showNewMeeting, setShowNewMeeting] = useState(false)
   const [showAgendaForm, setShowAgendaForm] = useState(false)
   const [expandedMeeting, setExpandedMeeting] = useState<number | null>(null)
+  const [editMeeting, setEditMeeting] = useState<Meeting | null>(null)
+
+  const deleteMeeting = useMutation({
+    mutationFn: (meetingId: number) => api.delete(`/vves/${vveId}/meetings/${meetingId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meetings', vveId] }),
+  })
 
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({
     queryKey: ['meetings', vveId],
@@ -108,6 +114,8 @@ export default function MeetingsPage() {
                 onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)}
                 onCreateTeams={() => createTeams.mutate(m.id)}
                 onCompileAgenda={() => compilAgenda.mutate(m.id)}
+                onEdit={() => setEditMeeting(m)}
+                onDelete={() => { if (window.confirm(`Vergadering "${m.title}" verwijderen?`)) deleteMeeting.mutate(m.id) }}
               />
             ))}
           </div>
@@ -129,6 +137,8 @@ export default function MeetingsPage() {
                 onToggle={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)}
                 onCreateTeams={() => {}}
                 onCompileAgenda={() => {}}
+                onEdit={() => setEditMeeting(m)}
+                onDelete={() => { if (window.confirm(`Vergadering "${m.title}" verwijderen?`)) deleteMeeting.mutate(m.id) }}
               />
             ))}
           </div>
@@ -149,6 +159,14 @@ export default function MeetingsPage() {
           onSaved={() => { setShowNewMeeting(false); qc.invalidateQueries({ queryKey: ['meetings', vveId] }) }}
         />
       )}
+      {editMeeting && (
+        <EditMeetingModal
+          vveId={vveId!}
+          meeting={editMeeting}
+          onClose={() => setEditMeeting(null)}
+          onSaved={() => { setEditMeeting(null); qc.invalidateQueries({ queryKey: ['meetings', vveId] }) }}
+        />
+      )}
       {showAgendaForm && (
         <AgendaItemModal
           vveId={vveId!}
@@ -162,9 +180,10 @@ export default function MeetingsPage() {
 
 type Tab = 'agenda' | 'notulen' | 'acties'
 
-function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onToggle, onCreateTeams, onCompileAgenda }: {
+function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onToggle, onCreateTeams, onCompileAgenda, onEdit, onDelete }: {
   meeting: Meeting; vveId: number; isBeheerder: boolean; pendingCount: number
   expanded: boolean; onToggle: () => void; onCreateTeams: () => void; onCompileAgenda: () => void
+  onEdit: () => void; onDelete: () => void
 }) {
   const qc = useQueryClient()
   const [activeTab, setActiveTab] = useState<Tab>('agenda')
@@ -293,6 +312,24 @@ function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onTo
               className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5"
             >
               Heropen
+            </button>
+          )}
+          {isBeheerder && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit() }}
+              className="text-gray-300 hover:text-primary-500 transition-colors p-1"
+              title="Bewerken"
+            >
+              <Pencil size={15} />
+            </button>
+          )}
+          {isBeheerder && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              className="text-gray-300 hover:text-red-500 transition-colors p-1"
+              title="Verwijderen"
+            >
+              <Trash2 size={15} />
             </button>
           )}
           {expanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
@@ -535,17 +572,23 @@ function AddActionItemForm({ vveId, meetingId }: { vveId: number; meetingId: num
 function UploadMinutesForm({ vveId, meetingId }: { vveId: number; meetingId: number }) {
   const qc = useQueryClient()
   const [text, setText] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
 
   const upload = useMutation({
     mutationFn: () => {
-      const params = new URLSearchParams()
-      if (text) params.append('content', text)
-      return api.post(`/vves/${vveId}/meetings/${meetingId}/minutes?${params.toString()}`)
+      const fd = new FormData()
+      if (text) fd.append('content', text)
+      if (file) fd.append('file', file)
+      return api.post(`/vves/${vveId}/meetings/${meetingId}/minutes`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['minutes', vveId, meetingId] })
       setText('')
+      setFile(null)
       setOpen(false)
     },
   })
@@ -568,16 +611,34 @@ function UploadMinutesForm({ vveId, meetingId }: { vveId: number; meetingId: num
         className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none"
         placeholder="Plak of typ de notulen hier..."
       />
+      <div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.doc,.docx"
+          className="hidden"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 text-xs border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 text-gray-600"
+        >
+          <Upload size={12} />
+          {file ? file.name : 'PDF bijvoegen (optioneel)'}
+        </button>
+      </div>
       <div className="flex gap-2">
         <button
-          onClick={() => setOpen(false)}
+          onClick={() => { setOpen(false); setFile(null) }}
           className="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50"
         >
           Annuleren
         </button>
         <button
-          onClick={() => upload.mutate()}
-          className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium"
+          onClick={() => (text || file) && upload.mutate()}
+          disabled={(!text && !file) || upload.isPending}
+          className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
         >
           Opslaan
         </button>
@@ -648,6 +709,81 @@ function NewMeetingModal({ vveId, onClose, onSaved }: { vveId: number; onClose: 
             </button>
             <button type="submit" className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium">
               Aanmaken
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function EditMeetingModal({ vveId, meeting, onClose, onSaved }: {
+  vveId: number; meeting: Meeting; onClose: () => void; onSaved: () => void
+}) {
+  const [form, setForm] = useState({
+    title: meeting.title,
+    meeting_date: meeting.meeting_date.slice(0, 16),
+    location: meeting.location ?? '',
+  })
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    try {
+      await api.patch(`/vves/${vveId}/meetings/${meeting.id}`, {
+        ...form,
+        meeting_date: new Date(form.meeting_date).toISOString(),
+        location: form.location || null,
+      })
+      onSaved()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(msg ?? 'Er is een fout opgetreden')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h2 className="text-lg font-semibold mb-4">Vergadering bewerken</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Titel *</label>
+            <input
+              type="text"
+              required
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Datum en tijd *</label>
+            <input
+              type="datetime-local"
+              required
+              value={form.meeting_date}
+              onChange={(e) => setForm((f) => ({ ...f, meeting_date: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Locatie</label>
+            <input
+              type="text"
+              value={form.location}
+              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+            />
+          </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">
+              Annuleren
+            </button>
+            <button type="submit" className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium">
+              Opslaan
             </button>
           </div>
         </form>

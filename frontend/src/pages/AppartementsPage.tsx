@@ -3,7 +3,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type { Appartement, VvE } from '@/types'
-import { Plus, Pencil, Trash2, X, Home } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Home, Power } from 'lucide-react'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
@@ -87,6 +87,15 @@ export default function AppartementsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.delete(`/vves/${vveId}/appartementen/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+    },
+  })
+
+  const toggleActiveMut = useMutation({
+    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
+      api.patch(`/vves/${vveId}/appartementen/${id}`, { is_active }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
@@ -328,11 +337,13 @@ export default function AppartementsPage() {
               {appartementen.map((a) => {
                 const bijdrage = getBijdrage(a)
                 const aandeel = parseFloat(a.aandeel)
+                const isActive = a.is_active !== false
                 return (
-                  <tr key={a.id} className="hover:bg-gray-50">
+                  <tr key={a.id} className={`hover:bg-gray-50 ${!isActive ? 'opacity-50' : ''}`}>
                     <td className="px-6 py-4">
                       <p className="font-medium text-gray-900">{a.naam}</p>
                       {a.nummer && <p className="text-xs text-gray-400">{a.nummer}</p>}
+                      {!isActive && <span className="text-xs text-red-500 font-medium">Inactief</span>}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{a.eigenaar_naam ?? '—'}</td>
                     <td className="px-6 py-4 text-right">
@@ -350,6 +361,13 @@ export default function AppartementsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => toggleActiveMut.mutate({ id: a.id, is_active: !isActive })}
+                          title={isActive ? 'Deactiveren' : 'Activeren'}
+                          className={`transition-colors ${isActive ? 'text-gray-400 hover:text-amber-500' : 'text-red-400 hover:text-green-500'}`}
+                        >
+                          <Power size={15} />
+                        </button>
                         <button
                           onClick={() => openEdit(a)}
                           className="text-gray-400 hover:text-primary-600 transition-colors"

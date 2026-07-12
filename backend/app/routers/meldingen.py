@@ -1,7 +1,7 @@
 import os
 import shutil
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -41,10 +41,10 @@ def list_meldingen(
 @router.post("", response_model=MeldingOut, status_code=status.HTTP_201_CREATED)
 async def create_melding(
     vve_id: int,
-    title: str,
-    description: str | None = None,
-    category: str = "overig",
-    urgency: str = "normaal",
+    title: str = Form(...),
+    description: str | None = Form(None),
+    category: str = Form("overig"),
+    urgency: str = Form("normaal"),
     photo: UploadFile = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

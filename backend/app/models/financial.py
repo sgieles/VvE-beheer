@@ -71,6 +71,12 @@ class Quote(Base):
     # Bijgesteld bedrag na goedkeuring (meerwerk etc.)
     final_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
 
+    date_received: Mapped[date | None] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    contact_person: Mapped[str | None] = mapped_column(String(200))
+    contact_email: Mapped[str | None] = mapped_column(String(200))
+    work_description: Mapped[str | None] = mapped_column(Text)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

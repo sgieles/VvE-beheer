@@ -2,9 +2,9 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
-import type { MJOPItem, ContributionPlan, ReserveFondsCombinedEntry } from '@/types'
+import type { MJOPItem, Quote, ContributionPlan, ReserveFondsCombinedEntry } from '@/types'
 import { Tooltip, PieChart, Pie, Cell } from 'recharts'
-import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight, Download, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 
@@ -176,6 +176,8 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
   const [inlineEdit, setInlineEdit] = useState<{
     itemId: number; field: 'planned_quarter' | 'planned_amount' | 'status'; value: string
   } | null>(null)
+  const [quoteItemId, setQuoteItemId] = useState<number | null>(null)
+  const quoteItem = quoteItemId ? items.find((i) => i.id === quoteItemId) ?? null : null
 
   const toggleSelect = (id: number) =>
     setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -609,20 +611,40 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
                       )}
                     </td>
                     <td className="px-6 py-3">
-                      {isBeheerder && (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setEditItem(item)} className="text-gray-400 hover:text-primary-600">
-                            <Pencil size={14} />
-                          </button>
+                      <div className="flex items-center gap-2">
+                        {(isBeheerder || item.quotes.length > 0) && (
                           <button
-                            onClick={() => cancelItem.mutate(item.id)}
-                            title="Annuleer post"
-                            className="text-gray-300 hover:text-red-500 transition-colors"
+                            onClick={() => setQuoteItemId(item.id)}
+                            title={`${item.quotes.length} offerte${item.quotes.length !== 1 ? 's' : ''}`}
+                            className={`flex items-center gap-1 transition-colors ${
+                              item.quotes.length > 0
+                                ? item.quotes.some((q) => q.is_approved)
+                                  ? 'text-green-500 hover:text-green-700'
+                                  : 'text-blue-500 hover:text-blue-700'
+                                : 'text-gray-300 hover:text-gray-400'
+                            }`}
                           >
-                            <X size={14} />
+                            <FileText size={14} />
+                            {item.quotes.length > 0 && (
+                              <span className="text-xs font-medium tabular-nums">{item.quotes.length}</span>
+                            )}
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {isBeheerder && (
+                          <>
+                            <button onClick={() => setEditItem(item)} className="text-gray-400 hover:text-primary-600">
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => cancelItem.mutate(item.id)}
+                              title="Annuleer post"
+                              className="text-gray-300 hover:text-red-500 transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -713,6 +735,323 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
           }}
         />
       )}
+
+      {quoteItem && (
+        <OfferteModal
+          item={quoteItem}
+          vveId={vveId}
+          isBeheerder={isBeheerder}
+          onClose={() => setQuoteItemId(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function OfferteModal({
+  item, vveId, isBeheerder, onClose,
+}: {
+  item: MJOPItem
+  vveId: number
+  isBeheerder: boolean
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [showForm, setShowForm] = useState(item.quotes.length === 0 && isBeheerder)
+  const [form, setForm] = useState({
+    supplier_name: '',
+    quoted_amount: '',
+    contact_person: '',
+    contact_email: '',
+    date_received: '',
+    valid_until: '',
+    work_description: '',
+    notes: '',
+  })
+  const [file, setFile] = useState<File | null>(null)
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
+
+  const addQuote = useMutation({
+    mutationFn: (fd: FormData) =>
+      api.post(`/vves/${vveId}/financial/quotes`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then((r) => r.data as Quote),
+    onSuccess: () => {
+      invalidate()
+      setForm({ supplier_name: '', quoted_amount: '', contact_person: '', contact_email: '', date_received: '', valid_until: '', work_description: '', notes: '' })
+      setFile(null)
+      setShowForm(false)
+    },
+  })
+
+  const awardQuote = useMutation({
+    mutationFn: (quoteId: number) =>
+      api.post(`/vves/${vveId}/financial/quotes/${quoteId}/approve`, {}),
+    onSuccess: invalidate,
+  })
+
+  const deleteQuote = useMutation({
+    mutationFn: (quoteId: number) =>
+      api.delete(`/vves/${vveId}/financial/quotes/${quoteId}`),
+    onSuccess: invalidate,
+  })
+
+  const downloadQuote = async (q: Quote) => {
+    const resp = await api.get(`/vves/${vveId}/financial/quotes/${q.id}/download`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([resp.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `offerte_${q.supplier_name.replace(/\s+/g, '_')}_${q.id}`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleSubmit = () => {
+    if (!form.supplier_name || !form.quoted_amount) return
+    const fd = new FormData()
+    fd.append('mjop_item_id', String(item.id))
+    fd.append('supplier_name', form.supplier_name)
+    fd.append('quoted_amount', form.quoted_amount)
+    if (form.notes) fd.append('notes', form.notes)
+    if (form.date_received) fd.append('date_received', form.date_received)
+    if (form.valid_until) fd.append('valid_until', form.valid_until)
+    if (form.contact_person) fd.append('contact_person', form.contact_person)
+    if (form.contact_email) fd.append('contact_email', form.contact_email)
+    if (form.work_description) fd.append('work_description', form.work_description)
+    if (file) fd.append('file', file)
+    addQuote.mutate(fd)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-8">
+        {/* Header */}
+        <div className="flex items-start justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Offertes</h2>
+            <p className="text-sm text-gray-500 mt-0.5 truncate max-w-xs">
+              {item.description} · {item.planned_year}{item.planned_quarter ? ` Q${item.planned_quarter}` : ''}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 -mt-1">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-3">
+          {item.quotes.length === 0 && (
+            <p className="text-center text-sm text-gray-400 py-4">Nog geen offertes toegevoegd</p>
+          )}
+
+          {item.quotes.map((q) => (
+            <div
+              key={q.id}
+              className={`border rounded-lg p-4 ${q.is_approved ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-900 text-sm">{q.supplier_name}</span>
+                    {q.is_approved && (
+                      <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
+                        Gegund
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-center gap-4 flex-wrap text-sm">
+                    <span className="font-semibold text-gray-800">{formatEur(q.quoted_amount)}</span>
+                    {q.final_amount && q.final_amount !== q.quoted_amount && (
+                      <span className="text-gray-500 text-xs">Definitief: {formatEur(q.final_amount)}</span>
+                    )}
+                    {q.date_received && (
+                      <span className="text-gray-400 text-xs">Ontvangen: {q.date_received}</span>
+                    )}
+                    {q.valid_until && (
+                      <span className="text-gray-400 text-xs">Geldig t/m: {q.valid_until}</span>
+                    )}
+                  </div>
+                  {q.contact_person && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {q.contact_person}{q.contact_email ? ` · ${q.contact_email}` : ''}
+                    </p>
+                  )}
+                  {q.work_description && (
+                    <p className="text-xs text-gray-600 mt-1.5 italic">{q.work_description}</p>
+                  )}
+                  {q.notes && <p className="text-xs text-gray-400 mt-1">{q.notes}</p>}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {q.document_path && (
+                    <button
+                      onClick={() => downloadQuote(q)}
+                      title="Download offerte"
+                      className="text-blue-400 hover:text-blue-600 p-1 transition-colors"
+                    >
+                      <Download size={14} />
+                    </button>
+                  )}
+                  {isBeheerder && !q.is_approved && (
+                    <button
+                      onClick={() => awardQuote.mutate(q.id)}
+                      disabled={awardQuote.isPending}
+                      className="text-xs font-medium text-green-600 hover:text-green-800 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded-md transition-colors disabled:opacity-50"
+                    >
+                      Gunnen
+                    </button>
+                  )}
+                  {isBeheerder && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Offerte verwijderen?')) deleteQuote.mutate(q.id)
+                      }}
+                      disabled={deleteQuote.isPending}
+                      className="text-gray-300 hover:text-red-500 p-1 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {isBeheerder && !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="w-full border-2 border-dashed border-gray-200 hover:border-primary-300 rounded-lg py-3 text-sm text-gray-400 hover:text-primary-600 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Plus size={14} /> Offerte toevoegen
+            </button>
+          )}
+
+          {isBeheerder && showForm && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Nieuwe offerte</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Aannemer / leverancier *</label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={form.supplier_name}
+                    onChange={(e) => setForm((f) => ({ ...f, supplier_name: e.target.value }))}
+                    placeholder="Naam bedrijf"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Offertebedrag (€) *</label>
+                  <input
+                    type="number"
+                    value={form.quoted_amount}
+                    onChange={(e) => setForm((f) => ({ ...f, quoted_amount: e.target.value }))}
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ontvangen op</label>
+                  <input
+                    type="date"
+                    value={form.date_received}
+                    onChange={(e) => setForm((f) => ({ ...f, date_received: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Contactpersoon</label>
+                  <input
+                    type="text"
+                    value={form.contact_person}
+                    onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value }))}
+                    placeholder="Naam"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">E-mailadres</label>
+                  <input
+                    type="email"
+                    value={form.contact_email}
+                    onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
+                    placeholder="contact@bedrijf.nl"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Geldig tot</label>
+                  <input
+                    type="date"
+                    value={form.valid_until}
+                    onChange={(e) => setForm((f) => ({ ...f, valid_until: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Omschrijving werkzaamheden</label>
+                  <textarea
+                    value={form.work_description}
+                    onChange={(e) => setForm((f) => ({ ...f, work_description: e.target.value }))}
+                    rows={2}
+                    placeholder="Wat omvat de offerte precies?"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white resize-none"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Interne notitie</label>
+                  <input
+                    type="text"
+                    value={form.notes}
+                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                    placeholder="Optionele aantekening"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">PDF-offerte (optioneel)</label>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="flex items-center gap-1.5 text-sm border border-gray-300 hover:border-primary-400 text-gray-500 hover:text-primary-600 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Upload size={14} />
+                    {file ? file.name : 'Bestand kiezen'}
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => { setShowForm(false); setFile(null) }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100"
+                >
+                  Annuleren
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!form.supplier_name || !form.quoted_amount || addQuote.isPending}
+                  className="px-4 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {addQuote.isPending ? 'Opslaan...' : 'Opslaan'}
+                </button>
+              </div>
+              {addQuote.isError && (
+                <p className="text-xs text-red-600 mt-2">Opslaan mislukt. Controleer de invoer.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

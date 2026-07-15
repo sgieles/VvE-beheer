@@ -72,7 +72,13 @@ export interface Quote {
   notes?: string
   is_approved: boolean
   approved_at?: string
+  approved_by_id?: number
   final_amount?: string
+  date_received?: string
+  valid_until?: string
+  contact_person?: string
+  contact_email?: string
+  work_description?: string
   created_at: string
 }
 

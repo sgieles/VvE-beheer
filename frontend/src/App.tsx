@@ -15,6 +15,7 @@ import RapportPage from '@/pages/RapportPage'
 import TakenPage from '@/pages/TakenPage'
 import BetalingenPage from '@/pages/BetalingenPage'
 import MeldingenPage from '@/pages/MeldingenPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="taken" element={<TakenPage />} />
           <Route path="betalingen" element={<BetalingenPage />} />
           <Route path="meldingen" element={<MeldingenPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

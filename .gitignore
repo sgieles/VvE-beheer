@@ -35,6 +35,9 @@ INLOGGEGEVENS.md
 # Upload bestanden (runtime data, niet in repo)
 backend/uploads/
 
+# Testdata (database-exports met gebruikersdata, alleen lokaal)
+Testdata/
+
 # OS
 .DS_Store
 Thumbs.db

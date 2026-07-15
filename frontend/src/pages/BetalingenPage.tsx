@@ -55,7 +55,7 @@ export default function BetalingenPage() {
   const { data: summary } = useQuery<PaymentSummary>({
     queryKey: ['payments-summary', vveId, year],
     queryFn: () => api.get(`/vves/${vveId}/payments/summary?year=${year}`).then((r) => r.data),
-    enabled: !!vveId && payments.length > 0,
+    enabled: !!vveId,
   })
 
   const generatePayments = useMutation({
@@ -98,7 +98,7 @@ export default function BetalingenPage() {
     return 'pending'
   }
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
+  const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - 7 + i)
 
   return (
     <div className="p-8">
@@ -315,7 +315,12 @@ export default function BetalingenPage() {
                 <tr>
                   <td className="px-4 py-3 font-bold text-gray-900 sticky left-0 bg-gray-50 z-10">Totaal</td>
                   <td className="px-3 py-3 text-gray-700 font-medium">
-                    {payments.length > 0 ? formatEur(Number(payments[0]?.expected_amount) * activeApps.length) : '—'}
+                    {payments.length > 0 ? formatEur(
+                      activeApps.reduce((sum, app) => {
+                        const p = payments.find((pay) => pay.appartement_id === app.id)
+                        return sum + (p ? Number(p.expected_amount) : 0)
+                      }, 0)
+                    ) : '—'}
                   </td>
                   {periods.map((period) => {
                     const periodPayments = payments.filter((p) => p.period_period === period)

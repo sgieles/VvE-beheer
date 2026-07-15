@@ -75,6 +75,21 @@ def update_meeting(
     return meeting
 
 
+@router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_meeting(
+    vve_id: int,
+    meeting_id: int,
+    current_user: User = Depends(get_current_beheerder),
+    db: Session = Depends(get_db),
+):
+    _check_vve_access(vve_id, current_user, db)
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.vve_id == vve_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Vergadering niet gevonden")
+    db.delete(meeting)
+    db.commit()
+
+
 @router.post("/{meeting_id}/create-teams-meeting", response_model=MeetingOut)
 async def create_teams_meeting(
     vve_id: int,

@@ -75,6 +75,12 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 - [x] **MeldingenPage: melding aanmaken stuurt lange tekst als URL query params**
   Backend gebruikt nu `Form()` params; frontend verstuurt FormData inclusief foto-upload.
 
+- [x] **Appartementenpage: nieuw bijdragenplan slaat niet op na 2 iteraties vanuit deze pagina. Wel wordt het bijdragnplan opgeslagen in Tabblad Financieel**
+  Voer een analyse uit voordat je het oplost.
+
+- [x] **Appartementenpage: aandeel-noemer zit geen validatie op als nieuw appartement wordt toegevoegd waardoor de teller hoger wordt dan de noemer**
+  Voer een analyse uit voordat je het oplost.
+
 ### Prioriteit 2 — Ontbrekende functionaliteit
 
 - [x] **MeldingenPage: foto-upload**
@@ -182,7 +188,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **Appartementen import via Excel/CSV**
 - [ ] **Zoek- en sorteerfunctie MJOP-tabel** (bij 100+ posten onhanteerbaar)
 - [ ] **Herinneringsfunctie achterstallige betalers** — manuele trigger of automatische e-mail
-
+- [ ] **standaard format voor agenda aanhouden bij het opmaken van agenda** — Hier zitten de formaliteiten in
+- [ ] **In het dashboard wil ik dat werkelijke kosten die gemaakt zijn worden overgenomen ipv de begrote kosten indien de activiteit op afgerond is gezet** — Voer eerst een analyse uit wat nodig is en of er onduidelijkheden zijn
 ---
 
 ## Architectuur (huidig)

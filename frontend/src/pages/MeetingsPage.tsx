@@ -6,7 +6,7 @@ import type { Meeting, AgendaItem, MeetingMinutes, ActionItem } from '@/types'
 import { toast } from '@/store/toastStore'
 import { apiError } from '@/utils/apiError'
 import {
-  Plus, CalendarPlus, ListChecks, Check, Video,
+  Plus, CalendarPlus, ListChecks, Check, Video, Calendar,
   ChevronDown, ChevronUp, CheckCircle2, Trash2, Pencil, Upload, ArrowRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -202,8 +202,42 @@ function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onTo
   onEdit: () => void; onDelete: () => void
 }) {
   const qc = useQueryClient()
+  const { activeVve } = useAuthStore()
   const [activeTab, setActiveTab] = useState<Tab>('agenda')
   const isUpcoming = meeting.status === 'planned' && new Date(meeting.meeting_date) > new Date()
+
+  function downloadIcs() {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const fmtDt = (d: Date) =>
+      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`
+    const start = new Date(meeting.meeting_date)
+    if (start.getHours() === 0 && start.getMinutes() === 0) start.setHours(9, 0, 0)
+    const end = new Date(start)
+    end.setHours(start.getHours() + 2)
+    const vveName = activeVve?.name ?? 'VvE'
+    const desc = [
+      `${vveName} vergadering`,
+      meeting.location ? `Locatie: ${meeting.location}` : '',
+      meeting.teams_url ? `Teams: ${meeting.teams_url}` : '',
+    ].filter(Boolean).join('\\n')
+    const lines = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//VvE Beheer//NL', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `DTSTART:${fmtDt(start)}`,
+      `DTEND:${fmtDt(end)}`,
+      `SUMMARY:${meeting.title} — ${vveName}`,
+      `DESCRIPTION:${desc}`,
+      meeting.location ? `LOCATION:${meeting.location}` : '',
+      meeting.teams_url ? `URL:${meeting.teams_url}` : '',
+      `UID:vve-meeting-${meeting.id}@vvebeheer`,
+      `DTSTAMP:${fmtDt(new Date())}`,
+      'END:VEVENT', 'END:VCALENDAR',
+    ].filter(Boolean).join('\r\n')
+    const blob = new Blob([lines], { type: 'text/calendar;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `vergadering_${meeting.id}.ics`; a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const { data: agenda = [] } = useQuery<AgendaItem[]>({
     queryKey: ['agenda', vveId, meeting.id],
@@ -357,6 +391,13 @@ function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onTo
               Heropen
             </button>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); downloadIcs() }}
+            className="text-gray-300 hover:text-primary-500 transition-colors p-1"
+            title="Exporteer naar kalender (.ics)"
+          >
+            <Calendar size={15} />
+          </button>
           {isBeheerder && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit() }}

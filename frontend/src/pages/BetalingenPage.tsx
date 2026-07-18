@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { ContributionPayment, PaymentSummary, Appartement, VvE } from '@/types'
-import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp, MessageSquare, X, Download } from 'lucide-react'
+import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp, MessageSquare, X, Download, Copy, ClipboardCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { toast } from '@/store/toastStore'
@@ -35,6 +35,7 @@ export default function BetalingenPage() {
   const qc = useQueryClient()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
+  const [copiedId, setCopiedId] = useState<number | null>(null)
 
   const { data: vve } = useQuery<VvE>({
     queryKey: ['vve', vveId],
@@ -207,6 +208,28 @@ export default function BetalingenPage() {
           URL.revokeObjectURL(url)
         }
 
+        function copyReminder(a: typeof overdueApps[0]) {
+          const deadline = new Date(); deadline.setDate(deadline.getDate() + 14)
+          const deadlineStr = deadline.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+          const aanhef = a.eigenaar_naam ? `Geachte ${a.eigenaar_naam},` : 'Geachte eigenaar,'
+          const text = [
+            aanhef,
+            '',
+            `Hierbij sturen wij u een betalingsherinnering voor de openstaande VvE-bijdragen van ${a.naam}.`,
+            '',
+            `Achterstallige periodes: ${a.overdueCount}`,
+            `Openstaand bedrag: ${formatEur(a.overdueAmount)}`,
+            '',
+            `Wij verzoeken u vriendelijk dit bedrag vóór ${deadlineStr} te voldoen.`,
+            '',
+            `Met vriendelijke groet,`,
+            vve?.name ?? 'Het bestuur van de VvE',
+          ].join('\n')
+          navigator.clipboard.writeText(text)
+          setCopiedId(a.id)
+          setTimeout(() => setCopiedId(null), 2000)
+        }
+
         return (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
@@ -224,13 +247,22 @@ export default function BetalingenPage() {
                 Exporteer CSV
               </button>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {overdueApps.map((a) => (
                 <div key={a.id} className="flex items-center justify-between text-sm text-red-800">
                   <span className="font-medium">{a.naam}{a.eigenaar_naam ? ` — ${a.eigenaar_naam}` : ''}</span>
-                  <span className="text-red-600 text-xs">
-                    {a.overdueCount} periode{a.overdueCount !== 1 ? 's' : ''} · {formatEur(a.overdueAmount)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-red-600 text-xs">
+                      {a.overdueCount} periode{a.overdueCount !== 1 ? 's' : ''} · {formatEur(a.overdueAmount)}
+                    </span>
+                    <button
+                      onClick={() => copyReminder(a)}
+                      className="text-red-400 hover:text-red-700 transition-colors p-1"
+                      title="Kopieer betalingsherinnering"
+                    >
+                      {copiedId === a.id ? <ClipboardCheck size={13} className="text-green-600" /> : <Copy size={13} />}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -182,8 +182,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 
 - [ ] **PDF-rapport exporteren** (echte PDF, niet `window.print()`) — forecast, scenario's, bijdrageoverzicht
 - [x] **Bijdrage-aanpassing wizard** — inline impact-preview toont nieuwe bijdrage per actief appartement zodra een bedrag wordt ingevoerd; oud→nieuw weergave wanneer een bestaand plan aanwezig is
-- [ ] **Microsoft Teams integratie** — vergadering aanmaken, leden uitnodigen (backend gereed, frontend Teams-flow ontbreekt)
-- [ ] **Offertes workflow** — offerte koppelen aan MJOP-post, goedkeuren, status bijhouden
+- [x] **Microsoft Teams integratie** — "Teams uitnodiging"-knop in MeetingCard roept POST /create-teams-meeting aan; join_url getoond als klikbare link
+- [x] **Offertes workflow** — OfferteModal in FinancialPage: uploaden, goedkeuren (POST /quotes/{id}/approve), verwijderen, downloaden; badge toont offerte-count per MJOP-post
 - [x] **Document-preview** — PDF inline in full-screen iframe modal via blob URL; niet-PDF toont download-knop
 - [x] **Appartementen import via Excel/CSV** — CSV-import endpoint (POST /appartementen/import), sjabloon-download, "CSV importeren"-knop in AppartementsPage header; fouten worden getoast
 - [x] **Zoek- en sorteerfunctie MJOP-tabel** — zoekbalk filtert op omschrijving en categorie; lege zoekresultaatmelding

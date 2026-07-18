@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { FinancialDashboard, MJOPItem, VvE } from '@/types'
+import type { FinancialDashboard, MJOPItem } from '@/types'
 import { Printer, CheckCircle, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
@@ -28,15 +28,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function RapportPage() {
-  const { activeVveId } = useAuthStore()
+  const { activeVveId, activeVve: vve } = useAuthStore()
   const vveId = activeVveId
   const today = format(new Date(), 'd MMMM yyyy', { locale: nl })
-
-  const { data: vve } = useQuery<VvE>({
-    queryKey: ['vve', vveId],
-    queryFn: () => api.get(`/vves/${vveId}`).then((r) => r.data),
-    enabled: !!vveId,
-  })
 
   const { data: dashboard } = useQuery<FinancialDashboard>({
     queryKey: ['dashboard', vveId, 0],

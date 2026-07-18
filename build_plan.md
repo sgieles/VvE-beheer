@@ -118,7 +118,7 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 - [ ] **RapportPage: maak het een printbare wrapper, geen datakopie**
   KPI-tiles, prognose-tabel, tekortanalyse en bijdrage-per-appartement zijn identiek aan DashboardPage. Maak RapportPage een `@media print`-view over DashboardPage-data in plaats van een aparte datalaag.
 
-- [ ] **TakenPage: duidelijk onderscheid met MeetingsPage actiepunten-tab**
+- [x] **TakenPage: duidelijk onderscheid met MeetingsPage actiepunten-tab**
   Dezelfde API, twee UIs. Verwijder het aanmaakformulier uit MeetingsPage (of omgekeerd) en maak TakenPage het primaire overzicht met filter op vergadering.
 
 - [x] **DashboardPage: "Slim plan"-knop staat twee keer op dezelfde pagina**
@@ -186,9 +186,9 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **Offertes workflow** — offerte koppelen aan MJOP-post, goedkeuren, status bijhouden
 - [ ] **Document-preview** — PDF inline weergeven zonder download
 - [ ] **Appartementen import via Excel/CSV**
-- [ ] **Zoek- en sorteerfunctie MJOP-tabel** (bij 100+ posten onhanteerbaar)
+- [x] **Zoek- en sorteerfunctie MJOP-tabel** — zoekbalk filtert op omschrijving en categorie; lege zoekresultaatmelding
 - [ ] **Herinneringsfunctie achterstallige betalers** — manuele trigger of automatische e-mail
-- [ ] **standaard format voor agenda aanhouden bij het opmaken van agenda** — Hier zitten de formaliteiten in
+- [x] **standaard format voor agenda aanhouden bij het opmaken van agenda** — "Standaard VvE-agenda toevoegen"-knop in lege agenda-tab; voegt 7 vaste punten toe (Opening, Notulen, Ingekomen stukken, Financiën, MJOP-voortgang, Rondvraag, Sluiting)
 - [x] **Dashboard: werkelijke kosten voor afgeronde MJOP-posten**
   Dashboard-berekening gebruikt nu `actual_amount` in plaats van `planned_amount` voor posten met `status == "completed"` en een ingevuld werkelijk bedrag. Geen onduidelijkheden: het veld bestaat al, was alleen niet meegenomen in de prognose.
 ---

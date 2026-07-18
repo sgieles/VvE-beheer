@@ -23,6 +23,7 @@ export default function TakenPage() {
   const qc = useQueryClient()
 
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [meetingFilter, setMeetingFilter] = useState<number | 'all'>('all')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', due_date: '', meeting_id: '' })
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
@@ -66,7 +67,10 @@ export default function TakenPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', vveId] }),
   })
 
-  const filtered = filter === 'all' ? tasks : tasks.filter((t) => t.status === filter)
+  const byStatus = filter === 'all' ? tasks : tasks.filter((t) => t.status === filter)
+  const filtered = meetingFilter === 'all'
+    ? byStatus
+    : byStatus.filter((t) => t.meeting_id === meetingFilter)
   const counts = {
     open: tasks.filter((t) => t.status === 'open').length,
     in_progress: tasks.filter((t) => t.status === 'in_progress').length,
@@ -113,7 +117,29 @@ export default function TakenPage() {
         ))}
       </div>
 
-      {/* Filter tabs */}
+      {/* Vergadering-filter (alleen beheerder ziet vergaderingen) */}
+      {isBeheerder && meetings.length > 0 && (
+        <div className="flex items-center gap-3 mb-4">
+          <label className="text-sm text-gray-500 shrink-0">Vergadering</label>
+          <select
+            value={meetingFilter === 'all' ? '' : meetingFilter}
+            onChange={(e) => setMeetingFilter(e.target.value ? parseInt(e.target.value) : 'all')}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white"
+          >
+            <option value="">Alle vergaderingen</option>
+            {meetings.map((m) => (
+              <option key={m.id} value={m.id}>{m.title}</option>
+            ))}
+          </select>
+          {meetingFilter !== 'all' && (
+            <button onClick={() => setMeetingFilter('all')} className="text-xs text-gray-400 hover:text-gray-600">
+              × Wissen
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Status filter tabs */}
       <div className="flex border-b border-gray-200 mb-6">
         {([
           { key: 'all', label: `Alle (${tasks.length})` },

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { ContributionPayment, PaymentSummary, Appartement, VvE } from '@/types'
-import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp, MessageSquare, X } from 'lucide-react'
+import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp, MessageSquare, X, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { toast } from '@/store/toastStore'
@@ -181,6 +181,63 @@ export default function BetalingenPage() {
         </div>
       )}
 
+      {/* Achterstallige betalers */}
+      {isBeheerder && summary && summary.overdue > 0 && payments.length > 0 && (() => {
+        const overdueApps = activeApps.filter((app) =>
+          periods.some((p) => getCellState(app.id, p) === 'overdue')
+        ).map((app) => ({
+          ...app,
+          overdueCount: periods.filter((p) => getCellState(app.id, p) === 'overdue').length,
+          overdueAmount: periods
+            .filter((p) => getCellState(app.id, p) === 'overdue')
+            .reduce((s, p) => {
+              const payment = paymentMap[`${app.id}-${p}`]
+              return s + (payment ? Number(payment.expected_amount) : 0)
+            }, 0),
+        }))
+
+        function exportOverdue() {
+          const rows = [
+            'Appartement,Eigenaar,Achterstallige periodes,Achterstallig bedrag',
+            ...overdueApps.map((a) => `"${a.naam}","${a.eigenaar_naam ?? ''}",${a.overdueCount},${a.overdueAmount.toFixed(2)}`),
+          ]
+          const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a'); link.href = url; link.download = `achterstalligen_${year}.csv`; link.click()
+          URL.revokeObjectURL(url)
+        }
+
+        return (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-red-500 shrink-0" />
+                <span className="text-sm font-semibold text-red-800">
+                  {overdueApps.length} appartement{overdueApps.length !== 1 ? 'en' : ''} met achterstallige betalingen
+                </span>
+              </div>
+              <button
+                onClick={exportOverdue}
+                className="flex items-center gap-1.5 text-xs text-red-700 hover:text-red-800 border border-red-300 px-2.5 py-1.5 rounded-lg font-medium"
+              >
+                <Download size={12} />
+                Exporteer CSV
+              </button>
+            </div>
+            <div className="space-y-1">
+              {overdueApps.map((a) => (
+                <div key={a.id} className="flex items-center justify-between text-sm text-red-800">
+                  <span className="font-medium">{a.naam}{a.eigenaar_naam ? ` — ${a.eigenaar_naam}` : ''}</span>
+                  <span className="text-red-600 text-xs">
+                    {a.overdueCount} periode{a.overdueCount !== 1 ? 's' : ''} · {formatEur(a.overdueAmount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Legenda */}
       <div className="flex items-center gap-4 mb-4 text-xs text-gray-500">
         <span className="flex items-center gap-1.5">
@@ -279,7 +336,7 @@ export default function BetalingenPage() {
                                   ? `Betaald op ${payment?.paid_at ? format(new Date(payment.paid_at), 'd MMM yyyy', { locale: nl }) : '?'} — klik om te markeren als onbetaald`
                                   : `Markeer als betaald`
                               }
-                              className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+                              className={`inline-flex items-center justify-center w-9 h-9 sm:w-7 sm:h-7 rounded transition-colors ${
                                 state === 'paid'
                                   ? 'bg-green-500 hover:bg-green-600'
                                   : state === 'overdue'

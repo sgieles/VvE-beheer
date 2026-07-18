@@ -7,6 +7,8 @@ import { Tooltip, PieChart, Pie, Cell } from 'recharts'
 import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight, Download, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { toast } from '@/store/toastStore'
+import { apiError } from '@/utils/apiError'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 function formatEur(v: number | string) {
@@ -143,6 +145,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
       setEditItem(null)
     },
+    onError: (err) => toast(apiError(err, 'Opslaan mislukt')),
   })
 
   const [showAddForm, setShowAddForm] = useState(false)
@@ -154,7 +157,9 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
       qc.invalidateQueries({ queryKey: ['mjop-items', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
       setShowAddForm(false)
+      toast('Post toegevoegd')
     },
+    onError: (err) => toast(apiError(err, 'Toevoegen mislukt')),
   })
 
   const handleExport = async () => {

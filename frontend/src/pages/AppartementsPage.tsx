@@ -158,6 +158,22 @@ export default function AppartementsPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const aandeel = parseFloat(form.aandeel)
+    if (isNaN(aandeel) || aandeel <= 0) {
+      setError('Voer een geldig aandeel in (groter dan 0)')
+      return
+    }
+    if (shareDenominator > 1 && aandeel > shareDenominator) {
+      setError(`Teller (${aandeel}) mag de noemer niet overschrijden (max: ${shareDenominator})`)
+      return
+    }
+    const huidigeAandelen = editing
+      ? totalAandeel - parseFloat(editing.aandeel)
+      : totalAandeel
+    if (shareDenominator > 1 && huidigeAandelen + aandeel > shareDenominator) {
+      setError(`Totaal aandeel wordt ${(huidigeAandelen + aandeel).toFixed(0)}/${shareDenominator} — dit overschrijdt de noemer. Pas de noemer aan of verlaag het aandeel.`)
+      return
+    }
     if (editing) {
       updateMut.mutate({ id: editing.id, data: form })
     } else {
@@ -469,14 +485,32 @@ export default function AppartementsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder={shareDenominator > 1 ? '3' : '0.5'}
                 />
-                {shareDenominator > 1 && form.aandeel && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    = {parseFloat(form.aandeel) || 0}/{shareDenominator} aandeel
-                    {dashboard?.bijdrage_per_eenheid != null && (
-                      <> — bijdrage: {formatCurrency((parseFloat(form.aandeel) || 0) * dashboard.bijdrage_per_eenheid)}/{periodeLabel}</>
-                    )}
-                  </p>
-                )}
+                {shareDenominator > 1 && (() => {
+                  const teller = parseFloat(form.aandeel) || 0
+                  const huidigeAandelen = editing ? totalAandeel - parseFloat(editing.aandeel) : totalAandeel
+                  const nieuwTotaal = huidigeAandelen + teller
+                  const overschrijdt = teller > 0 && nieuwTotaal > shareDenominator
+                  return (
+                    <>
+                      <p className="text-xs text-gray-400 mt-1">
+                        = {teller}/{shareDenominator} aandeel
+                        {dashboard?.bijdrage_per_eenheid != null && teller > 0 && (
+                          <> — bijdrage: {formatCurrency(teller * dashboard.bijdrage_per_eenheid)}/{periodeLabel}</>
+                        )}
+                      </p>
+                      {overschrijdt && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Totaal wordt {nieuwTotaal.toFixed(0)}/{shareDenominator} — noemer wordt overschreden
+                        </p>
+                      )}
+                      {!overschrijdt && teller > 0 && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Resterend na opslaan: {(shareDenominator - nieuwTotaal).toFixed(0)}/{shareDenominator}
+                        </p>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}

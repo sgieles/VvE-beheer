@@ -573,6 +573,18 @@ def create_contribution_plan(
     db: Session = Depends(get_db),
 ):
     _check_vve_access(vve_id, current_user, db)
+    # Upsert: als er al een plan bestaat met exact dezelfde ingangsdatum, werk het bij
+    existing = db.query(ContributionPlan).filter(
+        ContributionPlan.vve_id == vve_id,
+        ContributionPlan.effective_from == data.effective_from,
+    ).first()
+    if existing:
+        existing.amount_per_period = data.amount_per_period
+        if data.notes is not None:
+            existing.notes = data.notes
+        db.commit()
+        db.refresh(existing)
+        return existing
     # Sluit vorig actief plan automatisch af (effective_to = dag voor nieuwe ingangsdatum)
     prev = db.query(ContributionPlan).filter(
         ContributionPlan.vve_id == vve_id,

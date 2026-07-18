@@ -76,10 +76,10 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
   Backend gebruikt nu `Form()` params; frontend verstuurt FormData inclusief foto-upload.
 
 - [x] **Appartementenpage: nieuw bijdragenplan slaat niet op na 2 iteraties vanuit deze pagina. Wel wordt het bijdragnplan opgeslagen in Tabblad Financieel**
-  Voer een analyse uit voordat je het oplost.
+  Oorzaak: backend maakte duplicate plannen bij zelfde `effective_from` (strict `<` check). Opgelost met upsert: als plan met zelfde datum bestaat, wordt `amount_per_period` bijgewerkt i.p.v. nieuw plan aanmaken.
 
 - [x] **Appartementenpage: aandeel-noemer zit geen validatie op als nieuw appartement wordt toegevoegd waardoor de teller hoger wordt dan de noemer**
-  Voer een analyse uit voordat je het oplost.
+  Validatie toegevoegd in `handleSubmit`: blokkeert opslaan als teller > noemer of totaal > noemer. Live-hint toont resterend aandeel en waarschuwing bij overschrijding.
 
 ### Prioriteit 2 — Ontbrekende functionaliteit
 

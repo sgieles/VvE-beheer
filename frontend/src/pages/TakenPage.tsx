@@ -26,6 +26,7 @@ export default function TakenPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', due_date: '', meeting_id: '' })
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
+  const [confirmReset, setConfirmReset] = useState<number | null>(null)
 
   const { data: tasks = [], isLoading } = useQuery<ActionItem[]>({
     queryKey: ['tasks', vveId],
@@ -160,7 +161,13 @@ export default function TakenPage() {
             >
               {/* Status toggle */}
               <button
-                onClick={() => updateTask.mutate({ id: task.id, status: nextStatus })}
+                onClick={() => {
+                  if (nextStatus === 'open' && task.status === 'done') {
+                    setConfirmReset(task.id)
+                  } else {
+                    updateTask.mutate({ id: task.id, status: nextStatus })
+                  }
+                }}
                 className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                   task.status === 'done'
                     ? 'bg-green-500 border-green-500'
@@ -168,7 +175,7 @@ export default function TakenPage() {
                     ? 'bg-blue-100 border-blue-400'
                     : 'border-gray-300 hover:border-primary-400'
                 }`}
-                title={`Markeer als ${nextStatus === 'in_progress' ? 'Bezig' : nextStatus === 'done' ? 'Klaar' : 'Open'}`}
+                title={`Markeer als ${nextStatus === 'in_progress' ? 'Bezig' : nextStatus === 'done' ? 'Klaar' : 'Heropen'}`}
               >
                 {task.status === 'done' && <Check size={13} className="text-white" />}
                 {task.status === 'in_progress' && <Circle size={8} className="text-blue-500 fill-blue-500" />}
@@ -298,6 +305,16 @@ export default function TakenPage() {
           message="Actiepunt verwijderen?"
           onConfirm={() => { deleteTask.mutate(confirmDel); setConfirmDel(null) }}
           onCancel={() => setConfirmDel(null)}
+        />
+      )}
+
+      {confirmReset !== null && (
+        <ConfirmDialog
+          message="Actiepunt terugzetten naar 'Open'?"
+          confirmLabel="Heropen"
+          danger={false}
+          onConfirm={() => { updateTask.mutate({ id: confirmReset, status: 'open' }); setConfirmReset(null) }}
+          onCancel={() => setConfirmReset(null)}
         />
       )}
     </div>

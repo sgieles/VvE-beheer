@@ -5,7 +5,7 @@ import api from '@/services/api'
 import type {
   FinancialDashboard, BalanceRow, QuarterRow,
   ScenarioResult, ScenarioContributionIncrease, ScenarioDeferActivity, ScenarioOneTimeLevy,
-  SmartPlanResult, Announcement, Meeting, MeldingStats,
+  SmartPlanResult, Announcement, Meeting, MeldingStats, Appartement,
 } from '@/types'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -92,6 +92,12 @@ export default function DashboardPage() {
     enabled: !!vveId,
   })
 
+  const { data: appartementen = [] } = useQuery<Appartement[]>({
+    queryKey: ['appartementen', vveId],
+    queryFn: () => api.get(`/vves/${vveId}/appartementen`).then((r) => r.data),
+    enabled: !!vveId && isBeheerder,
+  })
+
   const upcomingMeeting = meetings
     .filter((m) => m.status === 'planned' && new Date(m.meeting_date) > new Date())
     .sort((a, b) => new Date(a.meeting_date).getTime() - new Date(b.meeting_date).getTime())[0]
@@ -142,6 +148,14 @@ export default function DashboardPage() {
   }
 
   const hasShortfalls = (dashboard?.shortfalls?.length ?? 0) > 0
+
+  const hasMjopItems = (dashboard?.projected_balance_by_year ?? []).some((r) => r.costs > 0)
+  const setupSteps = isBeheerder ? [
+    { label: 'Appartementen toevoegen', done: appartementen.length > 0, to: '/appartementen' },
+    { label: 'Bijdrageplan instellen', done: !!dashboard?.current_contribution_per_period, to: '/appartementen' },
+    { label: 'MJOP uploaden of invoeren', done: hasMjopItems, to: '/financieel' },
+  ] : []
+  const showOnboarding = isBeheerder && setupSteps.some((s) => !s.done)
   const periodeLabel = dashboard?.contribution_frequency === 'monthly' ? 'maand' : 'kwartaal'
 
   // Eigenaar: eigen bijdrage op basis van aandeel
@@ -167,6 +181,39 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500 mt-1">Welkom, {user?.full_name ?? user?.username}</p>
       </div>
+
+      {/* Onboarding checklist */}
+      {showOnboarding && (
+        <div className="bg-primary-50 border border-primary-200 rounded-xl p-5 mb-6">
+          <h2 className="text-sm font-semibold text-primary-900 mb-3 flex items-center gap-2">
+            <Zap size={15} className="text-primary-500" />
+            VvE instellen — nog {setupSteps.filter((s) => !s.done).length} stap{setupSteps.filter((s) => !s.done).length !== 1 ? 'pen' : ''} te voltooien
+          </h2>
+          <div className="space-y-1">
+            {setupSteps.map((step) => (
+              <Link
+                key={step.label}
+                to={step.to}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  step.done ? 'pointer-events-none' : 'hover:bg-primary-100'
+                }`}
+              >
+                {step.done ? (
+                  <CheckCircle size={16} className="text-green-500 shrink-0" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-primary-400 shrink-0" />
+                )}
+                <span className={step.done ? 'text-gray-400 line-through' : 'text-primary-800 font-medium'}>
+                  {step.label}
+                </span>
+                {!step.done && (
+                  <span className="ml-auto text-primary-500 text-xs font-medium">Instellen →</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick-info balk */}
       {(upcomingMeeting || (meldingStats && (meldingStats.nieuw + meldingStats.in_behandeling > 0))) && (

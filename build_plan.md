@@ -175,13 +175,13 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [x] **Foutmeldingen en validatie verbeteren**
   `apiError()` utility + toast `onError` callback toegevoegd aan alle key mutations in TakenPage, MeetingsPage, BetalingenPage, DocumentsPage, FinancialPage, AppartementsPage, SettingsPage.
 
-- [ ] **Onboarding-flow voor nieuwe VvE**
-  Stap-voor-stap wizard: VvE aanmaken → appartementen toevoegen → bijdrageplan instellen → MJOP uploaden.
+- [x] **Onboarding-flow voor nieuwe VvE**
+  Checklist-banner op DashboardPage (alleen beheerder): 3 stappen — Appartementen toevoegen, Bijdrageplan instellen, MJOP uploaden. Verdwijnt automatisch zodra alle stappen voltooid zijn. Elke stap linkt direct naar de juiste pagina.
 
 ### Prioriteit 5 — Nice to have
 
 - [ ] **PDF-rapport exporteren** (echte PDF, niet `window.print()`) — forecast, scenario's, bijdrageoverzicht
-- [ ] **Bijdrage-aanpassing wizard** — stap-voor-stap doorrekening nieuwe bijdrage met impact per appartement
+- [x] **Bijdrage-aanpassing wizard** — inline impact-preview toont nieuwe bijdrage per actief appartement zodra een bedrag wordt ingevoerd; oud→nieuw weergave wanneer een bestaand plan aanwezig is
 - [ ] **Microsoft Teams integratie** — vergadering aanmaken, leden uitnodigen (backend gereed, frontend Teams-flow ontbreekt)
 - [ ] **Offertes workflow** — offerte koppelen aan MJOP-post, goedkeuren, status bijhouden
 - [x] **Document-preview** — PDF inline in full-screen iframe modal via blob URL; niet-PDF toont download-knop

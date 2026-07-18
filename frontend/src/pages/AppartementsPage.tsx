@@ -317,36 +317,63 @@ export default function AppartementsPage() {
               Wijzigen
             </button>
           ) : (
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <span className="text-sm text-gray-600">€</span>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={bijdrageInput}
-                onChange={(e) => setBijdrageInput(e.target.value)}
-                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right"
-              />
-              <span className="text-sm text-gray-600">per 1/{shareDenominator} / {periodeLabel}</span>
-              {bijdrageInput && (
-                <span className="text-xs text-gray-400">= {formatCurrency(bijdrageTotal)}/totaal</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <span className="text-sm text-gray-600">€</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={bijdrageInput}
+                  onChange={(e) => setBijdrageInput(e.target.value)}
+                  className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                />
+                <span className="text-sm text-gray-600">per 1/{shareDenominator} / {periodeLabel}</span>
+                {bijdrageInput && (
+                  <span className="text-xs text-gray-400">= {formatCurrency(bijdrageTotal)}/totaal</span>
+                )}
+                <input
+                  type="date"
+                  value={bijdrageDatum}
+                  onChange={(e) => setBijdrageDatum(e.target.value)}
+                  className="px-2 py-1 border border-gray-300 rounded text-sm"
+                />
+                <button
+                  onClick={() => createBijdrageMut.mutate({ amount: bijdrageTotal, datum: bijdrageDatum })}
+                  disabled={!bijdrageInput || isNaN(bijdrageTotal) || bijdrageTotal <= 0}
+                  className="text-sm bg-primary-600 text-white px-3 py-1 rounded font-medium disabled:opacity-40"
+                >
+                  Opslaan
+                </button>
+                <button onClick={() => setShowBijdrageEdit(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={16} />
+                </button>
+              </div>
+              {parseFloat(bijdrageInput) > 0 && appartementen.filter((a) => a.is_active).length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs">
+                  <div className="flex items-center gap-1.5 text-blue-800 font-medium mb-1.5">
+                    <AlertTriangle size={13} />
+                    Bijdrage per appartement per {periodeLabel}
+                  </div>
+                  <div className="space-y-0.5">
+                    {appartementen.filter((a) => a.is_active).map((a) => {
+                      const oudBij = getBijdrage(a) ?? (parseFloat(a.aandeel) * (dashboard?.bijdrage_per_eenheid ?? 0))
+                      const nieuwBij = parseFloat(a.aandeel) * parseFloat(bijdrageInput)
+                      return (
+                        <div key={a.id} className="flex justify-between text-blue-700">
+                          <span>{a.naam}</span>
+                          <span>
+                            {dashboard?.bijdrage_per_eenheid != null && (
+                              <>{formatCurrency(oudBij)} → </>
+                            )}
+                            <span className="font-medium">{formatCurrency(nieuwBij)}</span>
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
-              <input
-                type="date"
-                value={bijdrageDatum}
-                onChange={(e) => setBijdrageDatum(e.target.value)}
-                className="px-2 py-1 border border-gray-300 rounded text-sm"
-              />
-              <button
-                onClick={() => createBijdrageMut.mutate({ amount: bijdrageTotal, datum: bijdrageDatum })}
-                disabled={!bijdrageInput || isNaN(bijdrageTotal) || bijdrageTotal <= 0}
-                className="text-sm bg-primary-600 text-white px-3 py-1 rounded font-medium disabled:opacity-40"
-              >
-                Opslaan
-              </button>
-              <button onClick={() => setShowBijdrageEdit(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={16} />
-              </button>
             </div>
           )}
         </div>

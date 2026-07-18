@@ -676,7 +676,8 @@ def get_financial_dashboard(
                 id=i.id,
                 planned_year=i.planned_year,
                 planned_quarter=i.planned_quarter,
-                planned_amount=i.planned_amount,
+                # Gebruik werkelijke kosten voor afgeronde posten als die beschikbaar zijn
+                planned_amount=i.actual_amount if (i.status == "completed" and i.actual_amount) else i.planned_amount,
                 description=i.description,
             )
             for i in db_items

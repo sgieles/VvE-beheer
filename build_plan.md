@@ -154,17 +154,17 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [x] **DashboardPage: eigenaar-bijdragekaart linkt door naar BetalingenPage**
   "Bekijk mijn betalingsoverzicht →" link toegevoegd in de eigenaar-bijdragekaart.
 
-- [ ] **MeetingsPage + DocumentsPage: koppel vergaderingsnotulen aan Documenten**
-  Na goedkeuring van notulen in MeetingsPage zou het document automatisch in DocumentsPage moeten verschijnen onder categorie "Vergadering".
+- [x] **MeetingsPage + DocumentsPage: koppel vergaderingsnotulen aan Documenten**
+  Backend `approve_minutes` kopieert het notulenbestand naar de documenten-map en maakt automatisch een VvEDocument-record aan (categorie "notulen"). Verschijnt direct in DocumentsPage na goedkeuring.
 
-- [ ] **MeldingenPage: maak status- en veldbeheer consistent**
-  Status slaat direct op via `select`, urgentie en notitie vereisen een aparte knop. Kies één patroon — bij voorkeur alles via één bewaar-knop.
+- [x] **MeldingenPage: maak status- en veldbeheer consistent**
+  Status én urgentie slaan direct op via `select onChange`. Alleen notitieveld heeft een aparte opslaanknop (logisch voor vrij tekstveld). Eén consistent patroon.
 
 - [ ] **SettingsPage + AppartementsPage: waarschuwing bij wijzigen aandeel-noemer**
   Wijziging van `share_denominator` herberekent direct alle bijdragen, de betalingsmatrix en het reservefonds-saldo. Toon een preview van de nieuwe bijdragen per appartement en vraag bevestiging vóór opslaan.
 
-- [ ] **TakenPage: cyclische status-toggle verduidelijken**
-  Klikken doorloopt open → bezig → klaar → open zonder onderscheid tussen "voortgang" en "reset". Voeg een bevestigingsstap toe bij terugzetten naar "open", of gebruik aparte knoppen.
+- [x] **TakenPage: cyclische status-toggle verduidelijken**
+  ConfirmDialog toegevoegd voor terugzetten naar "open" (klaar→open). Open→bezig en bezig→klaar werken direct. Title gewijzigd naar "Heropen" bij de terugzet-actie.
 
 - [x] **SettingsPage: verberg tab-balk als eigenaar slechts één tab ziet**
   Tab-balk omsloten met `{isBeheerder && ...}` — eigenaar ziet direct het Profiel-formulier zonder lege tab-navigatie.
@@ -189,7 +189,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **Zoek- en sorteerfunctie MJOP-tabel** (bij 100+ posten onhanteerbaar)
 - [ ] **Herinneringsfunctie achterstallige betalers** — manuele trigger of automatische e-mail
 - [ ] **standaard format voor agenda aanhouden bij het opmaken van agenda** — Hier zitten de formaliteiten in
-- [ ] **In het dashboard wil ik dat werkelijke kosten die gemaakt zijn worden overgenomen ipv de begrote kosten indien de activiteit op afgerond is gezet** — Voer eerst een analyse uit wat nodig is en of er onduidelijkheden zijn
+- [x] **Dashboard: werkelijke kosten voor afgeronde MJOP-posten**
+  Dashboard-berekening gebruikt nu `actual_amount` in plaats van `planned_amount` voor posten met `status == "completed"` en een ingevuld werkelijk bedrag. Geen onduidelijkheden: het veld bestaat al, was alleen niet meegenomen in de prognose.
 ---
 
 ## Architectuur (huidig)

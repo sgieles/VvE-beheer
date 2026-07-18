@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.models.meeting import Meeting, AgendaItem, MeetingMinutes
+from app.models.document import VvEDocument
 from app.core.dependencies import get_current_user, get_current_beheerder, require_vve_access
 from app.core.config import settings
 from app.schemas.meetings import (
@@ -311,6 +312,35 @@ def approve_minutes(
     minutes.is_approved = True
     minutes.approved_at = datetime.now(timezone.utc)
     minutes.approved_by_id = current_user.id
+
+    # Als er een bestand bij de notulen zit, kopieer naar documenten en maak een VvEDocument
+    if minutes.document_path and os.path.exists(minutes.document_path):
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        original_name = os.path.basename(minutes.document_path)
+        docs_dir = os.path.join(settings.UPLOAD_DIR, "documents", str(vve_id))
+        os.makedirs(docs_dir, exist_ok=True)
+        stored_name = f"notulen_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{original_name}"
+        dest_path = os.path.join(docs_dir, stored_name)
+        shutil.copy2(minutes.document_path, dest_path)
+
+        # Alleen aanmaken als er nog geen document voor deze notulen bestaat
+        existing = db.query(VvEDocument).filter(
+            VvEDocument.vve_id == vve_id,
+            VvEDocument.stored_filename == stored_name,
+        ).first()
+        if not existing:
+            title = f"Notulen {meeting.title}" if meeting else f"Notulen vergadering {meeting_id}"
+            doc = VvEDocument(
+                vve_id=vve_id,
+                title=title,
+                description=f"Automatisch toegevoegd bij goedkeuring notulen.",
+                original_filename=original_name,
+                stored_filename=stored_name,
+                category="notulen",
+                uploaded_by_id=current_user.id,
+            )
+            db.add(doc)
+
     db.commit()
     db.refresh(minutes)
     return minutes

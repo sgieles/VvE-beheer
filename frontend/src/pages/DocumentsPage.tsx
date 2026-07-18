@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { VvEDocument } from '@/types'
-import { Upload, Download, Trash2, FileText, FolderOpen, Plus } from 'lucide-react'
+import { Upload, Download, Trash2, FileText, FolderOpen, Plus, Eye, X, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { toast } from '@/store/toastStore'
@@ -40,6 +40,8 @@ export default function DocumentsPage() {
   const [filterCat, setFilterCat] = useState('alle')
   const [showUpload, setShowUpload] = useState(false)
   const [confirmDel, setConfirmDel] = useState<VvEDocument | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<{ doc: VvEDocument; blobUrl: string } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState<number | null>(null)
 
   const { data: documents = [], isLoading } = useQuery<VvEDocument[]>({
     queryKey: ['documents', vveId],
@@ -63,6 +65,26 @@ export default function DocumentsPage() {
     a.download = doc.original_filename
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function handlePreview(doc: VvEDocument) {
+    setPreviewLoading(doc.id)
+    try {
+      const response = await api.get(`/vves/${vveId}/documents/${doc.id}/download`, { responseType: 'blob' })
+      const mimeType = doc.original_filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (response.data as Blob).type
+      const blob = new Blob([response.data as Blob], { type: mimeType })
+      const blobUrl = URL.createObjectURL(blob)
+      setPreviewDoc({ doc, blobUrl })
+    } catch {
+      toast('Preview laden mislukt')
+    } finally {
+      setPreviewLoading(null)
+    }
+  }
+
+  function closePreview() {
+    if (previewDoc) URL.revokeObjectURL(previewDoc.blobUrl)
+    setPreviewDoc(null)
   }
 
   function handleDelete(doc: VvEDocument) {
@@ -175,6 +197,15 @@ export default function DocumentsPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 justify-end">
                       <button
+                        onClick={() => handlePreview(doc)}
+                        disabled={previewLoading === doc.id}
+                        className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 font-medium border border-gray-200 hover:border-gray-300 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        title="Bekijken"
+                      >
+                        {previewLoading === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                        Bekijken
+                      </button>
+                      <button
                         onClick={() => handleDownload(doc)}
                         className="flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 font-medium border border-primary-200 hover:border-primary-300 px-2.5 py-1.5 rounded-lg transition-colors"
                       >
@@ -196,6 +227,51 @@ export default function DocumentsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {previewDoc && (
+        <div className="fixed inset-0 bg-black/70 flex flex-col z-50">
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <FileText size={16} className="text-gray-500 shrink-0" />
+              <span className="text-sm font-medium text-gray-900 truncate">{previewDoc.doc.title}</span>
+              <span className="text-xs text-gray-400 truncate hidden sm:block">{previewDoc.doc.original_filename}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => handleDownload(previewDoc.doc)}
+                className="flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 font-medium border border-primary-200 px-2.5 py-1.5 rounded-lg"
+              >
+                <Download size={13} />
+                Download
+              </button>
+              <button onClick={closePreview} className="p-1.5 text-gray-500 hover:text-gray-700">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden bg-gray-800">
+            {previewDoc.doc.original_filename.toLowerCase().endsWith('.pdf') ? (
+              <iframe
+                src={previewDoc.blobUrl}
+                className="w-full h-full border-0"
+                title={previewDoc.doc.title}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-4">
+                <FileText size={48} />
+                <p className="text-sm">Preview niet beschikbaar voor dit bestandstype.</p>
+                <button
+                  onClick={() => handleDownload(previewDoc.doc)}
+                  className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm"
+                >
+                  <Download size={15} />
+                  Downloaden
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

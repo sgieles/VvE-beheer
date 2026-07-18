@@ -35,6 +35,8 @@ export default function AppartementsPage() {
   const [form, setForm] = useState<AppartementForm>(emptyForm)
   const [error, setError] = useState('')
 
+  const [confirmDelApp, setConfirmDelApp] = useState<Appartement | null>(null)
+
   // Denominator edit
   const [showDenomEdit, setShowDenomEdit] = useState(false)
   const [denomInput, setDenomInput] = useState('')
@@ -375,7 +377,8 @@ export default function AppartementsPage() {
             <p className="text-sm text-gray-400 mt-1">Voeg het eerste appartement toe om te beginnen</p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Appartement</th>
@@ -431,9 +434,7 @@ export default function AppartementsPage() {
                           <Pencil size={15} />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Appartement "${a.naam}" verwijderen?`)) deleteMut.mutate(a.id)
-                          }}
+                          onClick={() => setConfirmDelApp(a)}
                           className="text-gray-400 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={15} />
@@ -463,6 +464,7 @@ export default function AppartementsPage() {
               </tfoot>
             )}
           </table>
+          </div>
         )}
       </div>
 
@@ -574,6 +576,14 @@ export default function AppartementsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmDelApp && (
+        <ConfirmDialog
+          message={`Appartement "${confirmDelApp.naam}" definitief verwijderen?`}
+          onConfirm={() => { deleteMut.mutate(confirmDelApp.id); setConfirmDelApp(null) }}
+          onCancel={() => setConfirmDelApp(null)}
+        />
       )}
 
       {confirmDenom !== null && (

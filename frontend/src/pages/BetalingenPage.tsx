@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { ContributionPayment, PaymentSummary, Appartement, VvE } from '@/types'
-import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp } from 'lucide-react'
+import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp, MessageSquare, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { toast } from '@/store/toastStore'
 
 function formatEur(v: number | string) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(v))
@@ -74,6 +75,8 @@ export default function BetalingenPage() {
       qc.invalidateQueries({ queryKey: ['payments-summary', vveId, year] })
     },
   })
+
+  const [notitiesApp, setNotitiesApp] = useState<Appartement | null>(null)
 
   const frequency = vve?.contribution_frequency ?? 'monthly'
   const numPeriods = frequency === 'monthly' ? 12 : 4
@@ -225,6 +228,7 @@ export default function BetalingenPage() {
                 <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 whitespace-nowrap">
                   Betaald
                 </th>
+                {isBeheerder && <th className="px-2 py-3 w-8" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -305,6 +309,21 @@ export default function BetalingenPage() {
                         <p className="text-xs text-gray-400">{formatEur(totalPaid)}</p>
                       )}
                     </td>
+                    {isBeheerder && (
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          onClick={() => setNotitiesApp(app)}
+                          title="Notities"
+                          className={`p-1 rounded transition-colors ${
+                            appPayments.some((p) => p.notes)
+                              ? 'text-amber-500 hover:text-amber-600'
+                              : 'text-gray-300 hover:text-gray-500'
+                          }`}
+                        >
+                          <MessageSquare size={14} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 )
               })}
@@ -338,12 +357,96 @@ export default function BetalingenPage() {
                     <span className="font-bold text-gray-900">{formatEur(summary.total_paid)}</span>
                     <p className="text-xs text-gray-500">{summary.pct_paid}%</p>
                   </td>
+                  {isBeheerder && <td />}
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
       )}
+
+      {notitiesApp && (
+        <NotitiesModal
+          app={notitiesApp}
+          payments={payments.filter((p) => p.appartement_id === notitiesApp.id)}
+          vveId={vveId!}
+          frequency={frequency}
+          onClose={() => setNotitiesApp(null)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['payments', vveId, year] })}
+        />
+      )}
+    </div>
+  )
+}
+
+function NotitiesModal({ app, payments, vveId, frequency, onClose, onSaved }: {
+  app: Appartement
+  payments: ContributionPayment[]
+  vveId: number
+  frequency: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [notes, setNotes] = useState<Record<number, string>>(
+    Object.fromEntries(payments.map((p) => [p.id, p.notes ?? '']))
+  )
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    const changed = payments.filter((p) => (notes[p.id] ?? '') !== (p.notes ?? ''))
+    await Promise.all(
+      changed.map((p) => api.patch(`/vves/${vveId}/payments/${p.id}`, { notes: notes[p.id] || null }))
+    )
+    setSaving(false)
+    onSaved()
+    toast('Notities opgeslagen')
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Notities</h2>
+            <p className="text-sm text-gray-500">{app.naam}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-auto space-y-3 pr-1">
+          {payments.length === 0 && (
+            <p className="text-sm text-gray-400">Geen betaalrecords voor dit appartement.</p>
+          )}
+          {payments.map((p) => (
+            <div key={p.id}>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                {periodLabel(p.period_period, frequency)}
+                {p.paid_at && <span className="ml-1 text-green-600">✓ betaald</span>}
+              </label>
+              <textarea
+                rows={2}
+                value={notes[p.id] ?? ''}
+                onChange={(e) => setNotes((n) => ({ ...n, [p.id]: e.target.value }))}
+                placeholder="Interne notitie (optioneel)..."
+                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 pt-4 mt-2 border-t border-gray-100">
+          <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">
+            Annuleren
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium disabled:opacity-50"
+          >
+            {saving ? 'Opslaan…' : 'Opslaan'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

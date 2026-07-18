@@ -16,6 +16,7 @@ import TakenPage from '@/pages/TakenPage'
 import BetalingenPage from '@/pages/BetalingenPage'
 import MeldingenPage from '@/pages/MeldingenPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import Toaster from '@/components/Toaster'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -25,6 +26,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route

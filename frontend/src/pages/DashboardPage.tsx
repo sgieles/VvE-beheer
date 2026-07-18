@@ -356,6 +356,12 @@ export default function DashboardPage() {
             <p className="text-sm text-primary-600 mt-0.5">
               per {periodeLabel} — aandeel {eigenaarAandeel}/{dashboard?.share_denominator ?? '…'}
             </p>
+            <Link
+              to="/betalingen"
+              className="inline-block mt-2 text-xs text-primary-700 underline hover:text-primary-900 font-medium"
+            >
+              Bekijk mijn betalingsoverzicht →
+            </Link>
           </div>
           <div className="text-right hidden sm:block">
             <p className="text-xs text-primary-500 uppercase tracking-wider font-medium">Jaarlijks</p>
@@ -470,25 +476,14 @@ export default function DashboardPage() {
 
       {/* Gezond-indicator — alleen tonen als er MJOP-data is maar geen tekorten */}
       {chartData.length > 0 && !hasShortfalls && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <CheckCircle className="text-green-500 shrink-0" size={20} />
-            <div>
-              <p className="font-medium text-green-800">Reservefonds is financieel gezond</p>
-              <p className="text-sm text-green-700 mt-0.5">
-                Geen tekorten verwacht op basis van het huidige MJOP en bijdrageplan.
-              </p>
-            </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-center gap-3">
+          <CheckCircle className="text-green-500 shrink-0" size={20} />
+          <div>
+            <p className="font-medium text-green-800">Reservefonds is financieel gezond</p>
+            <p className="text-sm text-green-700 mt-0.5">
+              Geen tekorten verwacht op basis van het huidige MJOP en bijdrageplan.
+            </p>
           </div>
-          {isBeheerder && (
-            <button
-              onClick={() => setShowSlimPlan(true)}
-              className="shrink-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
-            >
-              <Wand2 size={13} />
-              Bereken slim plan
-            </button>
-          )}
         </div>
       )}
 

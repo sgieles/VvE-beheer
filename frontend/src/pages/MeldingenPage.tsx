@@ -6,6 +6,7 @@ import type { Melding, MeldingStats } from '@/types'
 import { AlertTriangle, Wrench, Plus, ChevronDown, Trash2, MessageSquare, Paperclip } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { toast } from '@/store/toastStore'
 
 type StatusFilter = 'all' | 'nieuw' | 'in_behandeling' | 'opgelost' | 'afgesloten'
 
@@ -77,6 +78,7 @@ export default function MeldingenPage() {
       setForm({ title: '', description: '', category: 'overig', urgency: 'normaal' })
       setPhoto(null)
       setShowForm(false)
+      toast('Melding ingediend')
     },
   })
 
@@ -94,6 +96,7 @@ export default function MeldingenPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meldingen', vveId] })
       qc.invalidateQueries({ queryKey: ['meldingen-stats', vveId] })
+      toast('Melding verwijderd')
     },
   })
 

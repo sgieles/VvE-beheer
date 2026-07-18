@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { Meeting, AgendaItem, MeetingMinutes, ActionItem } from '@/types'
+import { toast } from '@/store/toastStore'
 import {
   Plus, CalendarPlus, ListChecks, Check, Video,
   ChevronDown, ChevronUp, CheckCircle2, Trash2, Pencil, Upload,
@@ -23,7 +24,7 @@ export default function MeetingsPage() {
 
   const deleteMeeting = useMutation({
     mutationFn: (meetingId: number) => api.delete(`/vves/${vveId}/meetings/${meetingId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meetings', vveId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['meetings', vveId] }); toast('Vergadering verwijderd') },
   })
 
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({

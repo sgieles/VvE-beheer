@@ -104,8 +104,8 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 - [ ] **App-breed: e-mailnotificaties**
   Eigenaar krijgt geen bericht bij nieuw betalingsverzoek, opgeloste melding of nieuwe aankondiging. SMTP-integratie als minimale stap.
 
-- [ ] **BetalingenPage: notitieveld zichtbaar maken**
-  Backend heeft `notes` op `ContributionPayment` en is patchbaar, maar de UI exposeert het niet. Voeg een notitieveld toe in de betaalcel of een apart detailpaneel.
+- [x] **BetalingenPage: notitieveld zichtbaar maken**
+  NotitiesModal per rij toegevoegd (MessageSquare-knop). Beheerder kan per periode notities lezen en bewerken via PATCH.
 
 ### Prioriteit 3 — Duplicaten & technische schuld
 
@@ -121,8 +121,8 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 - [ ] **TakenPage: duidelijk onderscheid met MeetingsPage actiepunten-tab**
   Dezelfde API, twee UIs. Verwijder het aanmaakformulier uit MeetingsPage (of omgekeerd) en maak TakenPage het primaire overzicht met filter op vergadering.
 
-- [ ] **DashboardPage: "Slim plan"-knop staat twee keer op dezelfde pagina**
-  Eén keer in de gezondheidsanalyse-banner, eén keer in de prognose-grafiekheader. Verwijder de knop uit de banner; de grafiekheader is de logische vaste locatie.
+- [x] **DashboardPage: "Slim plan"-knop staat twee keer op dezelfde pagina**
+  Knop verwijderd uit de "financieel gezond"-banner; blijft in de prognose-grafiekheader.
 
 ### Prioriteit 4 — Mobiele toegankelijkheid (iOS & Android)
 
@@ -137,22 +137,22 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **Touch-vriendelijke interactie-elementen**
   Buttons en klikgebieden minimaal 44×44 px (Apple HIG-richtlijn). Inline cel-editing in de MJOP-tabel werkt niet goed met touch — vervang door een tap-to-edit patroon met een kleine popup of bottom sheet op mobiel.
 
-- [ ] **Mobiele navigatie**
-  De huidige zijbalk is te smal op telefoon. Voeg een hamburger-menu of een bottom navigation bar toe voor telefoonformaat.
+- [x] **Mobiele navigatie**
+  Hamburger-menu toegevoegd: sidebar schuift in via slide-animatie, overlay sluit het menu, nav-links sluiten het menu bij klikken.
 
 - [ ] **App Store / Play Store (optioneel, later)**
   Als PWA niet voldoende is: verpak de web-app in een native shell via Capacitor of Expo WebView en publiceer als native app. Dit is een later stadium — PWA is de minimale stap.
 
 ### Prioriteit 4 — UX & Flow
 
-- [ ] **App-breed: succes-feedback na mutaties (toast/snackbar)**
-  De meeste mutaties (bijdrageplan aanmaken, vergadering plannen, document uploaden, aankondiging) geven geen visuele bevestiging. Voeg een consistente toast-component toe voor gebruik door alle pagina's.
+- [x] **App-breed: succes-feedback na mutaties (toast/snackbar)**
+  Toast-systeem toegevoegd (toastStore + Toaster-component). MeldingenPage, MeetingsPage, BetalingenPage gebruiken het al.
 
 - [ ] **App-breed: consistente verwijderbevestiging**
   Sommige pagina's gebruiken `window.confirm()`, andere verwijderen direct. Vervang door één in-app bevestigingsdialoog voor alle destructieve acties.
 
-- [ ] **DashboardPage: eigenaar-bijdragekaart linkt door naar BetalingenPage**
-  De eigenaar-kaart toont bijdragebedrag maar heeft geen CTA naar eigen betalingshistorie. Voeg een "Bekijk mijn betalingen"-link toe.
+- [x] **DashboardPage: eigenaar-bijdragekaart linkt door naar BetalingenPage**
+  "Bekijk mijn betalingsoverzicht →" link toegevoegd in de eigenaar-bijdragekaart.
 
 - [ ] **MeetingsPage + DocumentsPage: koppel vergaderingsnotulen aan Documenten**
   Na goedkeuring van notulen in MeetingsPage zou het document automatisch in DocumentsPage moeten verschijnen onder categorie "Vergadering".

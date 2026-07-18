@@ -113,6 +113,5 @@ Configuratie staat in [`render.yaml`](render.yaml) en [`Dockerfile`](Dockerfile)
 
 ## Nice to have (later)
 
-- Microsoft Teams integratie (vergaderingen aanmaken, uitnodigingen sturen)
-- Vergaderbeheer (agenda, notulen)
-- Offertes workflow (offertes koppelen aan MJOP-posten, goedkeuren)
+- PDF-rapport exporteren (echte PDF, niet window.print())
+- App Store / Play Store publicatie via Capacitor of Expo WebView

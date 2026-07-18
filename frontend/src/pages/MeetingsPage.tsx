@@ -6,10 +6,11 @@ import type { Meeting, AgendaItem, MeetingMinutes, ActionItem } from '@/types'
 import { toast } from '@/store/toastStore'
 import {
   Plus, CalendarPlus, ListChecks, Check, Video,
-  ChevronDown, ChevronUp, CheckCircle2, Trash2, Pencil, Upload,
+  ChevronDown, ChevronUp, CheckCircle2, Trash2, Pencil, Upload, ArrowRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { Link } from 'react-router-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 export default function MeetingsPage() {
@@ -218,6 +219,33 @@ function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onTo
     enabled: expanded && activeTab === 'acties',
   })
 
+  const STANDAARD_AGENDA = [
+    { title: 'Opening en stemopname', description: 'Vaststellen aanwezigen en quorum' },
+    { title: 'Notulen vorige vergadering', description: 'Vaststellen en ondertekenen' },
+    { title: 'Ingekomen stukken en mededelingen', description: null },
+    { title: 'Financiën', description: 'Balans, begroting en reservefonds' },
+    { title: 'MJOP-voortgang', description: 'Onderhoudsstatus en planning' },
+    { title: 'Rondvraag', description: null },
+    { title: 'Sluiting', description: null },
+  ]
+
+  const [addingStdAgenda, setAddingStdAgenda] = useState(false)
+  const addStandardAgenda = async () => {
+    setAddingStdAgenda(true)
+    try {
+      for (const item of STANDAARD_AGENDA) {
+        await api.post(`/vves/${vveId}/meetings/agenda`, { meeting_id: meeting.id, ...item })
+      }
+      await api.post(`/vves/${vveId}/meetings/${meeting.id}/agenda/compile`)
+      qc.invalidateQueries({ queryKey: ['agenda', vveId, meeting.id] })
+      toast('Standaard agenda toegevoegd')
+    } catch {
+      toast('Fout bij toevoegen standaard agenda')
+    } finally {
+      setAddingStdAgenda(false)
+    }
+  }
+
   const approveMinutes = useMutation({
     mutationFn: (minutesId: number) =>
       api.post(`/vves/${vveId}/meetings/${meeting.id}/minutes/${minutesId}/approve`),
@@ -372,7 +400,19 @@ function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onTo
             {activeTab === 'agenda' && (
               <div>
                 {agenda.length === 0 ? (
-                  <p className="text-sm text-gray-400">Geen agendapunten toegewezen.</p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-400">Geen agendapunten toegewezen.</p>
+                    {isBeheerder && (
+                      <button
+                        onClick={addStandardAgenda}
+                        disabled={addingStdAgenda}
+                        className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50"
+                      >
+                        <ListChecks size={15} />
+                        {addingStdAgenda ? 'Toevoegen…' : 'Standaard VvE-agenda toevoegen'}
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <ol className="space-y-2">
                     {[...agenda]
@@ -495,87 +535,17 @@ function MeetingCard({ meeting, vveId, isBeheerder, pendingCount, expanded, onTo
                     </div>
                   </div>
                 ))}
-                {isBeheerder && (
-                  <AddActionItemForm vveId={vveId} meetingId={meeting.id} />
-                )}
+                <Link
+                  to="/taken"
+                  className="mt-1 flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  <ArrowRight size={12} /> Beheren in Actiepunten
+                </Link>
               </div>
             )}
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function AddActionItemForm({ vveId, meetingId }: { vveId: number; meetingId: number }) {
-  const qc = useQueryClient()
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', due_date: '' })
-
-  const create = useMutation({
-    mutationFn: () =>
-      api.post(`/vves/${vveId}/tasks`, {
-        title: form.title,
-        description: form.description || undefined,
-        meeting_id: meetingId,
-        due_date: form.due_date || undefined,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks', vveId, meetingId] })
-      setForm({ title: '', description: '', due_date: '' })
-      setOpen(false)
-    },
-  })
-
-  if (!open) return (
-    <button
-      onClick={() => setOpen(true)}
-      className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium mt-1"
-    >
-      <Plus size={12} /> Actiepunt toevoegen
-    </button>
-  )
-
-  return (
-    <div className="mt-2 border border-gray-200 rounded-xl p-4 space-y-3 bg-white">
-      <input
-        type="text"
-        placeholder="Omschrijving *"
-        value={form.title}
-        onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-        className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none"
-      />
-      <textarea
-        rows={2}
-        placeholder="Toelichting (optioneel)"
-        value={form.description}
-        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-        className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none"
-      />
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Deadline</label>
-        <input
-          type="date"
-          value={form.due_date}
-          onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none"
-        />
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() => setOpen(false)}
-          className="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50"
-        >
-          Annuleren
-        </button>
-        <button
-          onClick={() => form.title && create.mutate()}
-          disabled={!form.title || create.isPending}
-          className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
-        >
-          Toevoegen
-        </button>
-      </div>
     </div>
   )
 }

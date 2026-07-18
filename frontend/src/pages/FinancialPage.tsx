@@ -107,6 +107,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
   const [editItem, setEditItem] = useState<MJOPItem | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [mjopSearch, setMjopSearch] = useState('')
 
   const { data: items = [], isLoading } = useQuery<MJOPItem[]>({
     queryKey: ['mjop-items', vveId],
@@ -265,7 +266,12 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
   const cancelledItems = items.filter((i) => i.status === 'cancelled')
   const noQuarterCount = activeItems.filter((i) => i.planned_quarter == null).length
 
-  const groupedByYear = activeItems.reduce<Record<number, MJOPItem[]>>((acc, item) => {
+  const searchLower = mjopSearch.toLowerCase()
+  const filteredItems = mjopSearch
+    ? activeItems.filter((i) => i.description.toLowerCase().includes(searchLower) || (i.category ?? '').toLowerCase().includes(searchLower))
+    : activeItems
+
+  const groupedByYear = filteredItems.reduce<Record<number, MJOPItem[]>>((acc, item) => {
     const y = item.planned_year
     if (!acc[y]) acc[y] = []
     acc[y].push(item)
@@ -462,6 +468,22 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
         )}
       </div>
 
+      {items.length > 0 && (
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Zoek op omschrijving of categorie…"
+            value={mjopSearch}
+            onChange={(e) => setMjopSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+          />
+          <svg className="absolute left-3 top-2.5 text-gray-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          {mjopSearch && (
+            <button onClick={() => setMjopSearch('')} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-xs">× wissen</button>
+          )}
+        </div>
+      )}
+
       {isLoading && <MJOPSkeleton />}
 
       {!isLoading && items.length === 0 && (
@@ -469,6 +491,10 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
           <Upload className="mx-auto text-gray-400 mb-3" size={32} />
           <p className="text-gray-500">Nog geen MJOP geladen. Upload een Excel- of PDF-bestand.</p>
         </div>
+      )}
+
+      {!isLoading && items.length > 0 && mjopSearch && Object.keys(groupedByYear).length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-8">Geen posten gevonden voor "{mjopSearch}".</p>
       )}
 
       {Object.entries(groupedByYear).sort(([a], [b]) => Number(a) - Number(b)).map(([year, yearItems]) => (

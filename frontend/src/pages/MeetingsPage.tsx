@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 export default function MeetingsPage() {
   const { user, activeVveId } = useAuthStore()
@@ -21,6 +22,7 @@ export default function MeetingsPage() {
   const [showAgendaForm, setShowAgendaForm] = useState(false)
   const [expandedMeeting, setExpandedMeeting] = useState<number | null>(null)
   const [editMeeting, setEditMeeting] = useState<Meeting | null>(null)
+  const [confirmDel, setConfirmDel] = useState<Meeting | null>(null)
 
   const deleteMeeting = useMutation({
     mutationFn: (meetingId: number) => api.delete(`/vves/${vveId}/meetings/${meetingId}`),
@@ -116,7 +118,7 @@ export default function MeetingsPage() {
                 onCreateTeams={() => createTeams.mutate(m.id)}
                 onCompileAgenda={() => compilAgenda.mutate(m.id)}
                 onEdit={() => setEditMeeting(m)}
-                onDelete={() => { if (window.confirm(`Vergadering "${m.title}" verwijderen?`)) deleteMeeting.mutate(m.id) }}
+                onDelete={() => setConfirmDel(m)}
               />
             ))}
           </div>
@@ -139,7 +141,7 @@ export default function MeetingsPage() {
                 onCreateTeams={() => {}}
                 onCompileAgenda={() => {}}
                 onEdit={() => setEditMeeting(m)}
-                onDelete={() => { if (window.confirm(`Vergadering "${m.title}" verwijderen?`)) deleteMeeting.mutate(m.id) }}
+                onDelete={() => setConfirmDel(m)}
               />
             ))}
           </div>
@@ -173,6 +175,14 @@ export default function MeetingsPage() {
           vveId={vveId!}
           onClose={() => setShowAgendaForm(false)}
           onSaved={() => { setShowAgendaForm(false); qc.invalidateQueries({ queryKey: ['agenda-pending', vveId] }) }}
+        />
+      )}
+
+      {confirmDel && (
+        <ConfirmDialog
+          message={`Vergadering "${confirmDel.title}" verwijderen? Agenda en notulen gaan ook verloren.`}
+          onConfirm={() => { deleteMeeting.mutate(confirmDel.id); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
         />
       )}
     </div>

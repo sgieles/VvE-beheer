@@ -210,8 +210,8 @@ export default function BetalingenPage() {
       )}
 
       {payments.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-auto">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 sticky left-0 bg-gray-50 z-10">

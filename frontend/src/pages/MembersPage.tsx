@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { User, ContributionPlan, VvE, Role } from '@/types'
 import { UserPlus, Pencil, Ban, CheckCircle } from 'lucide-react'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 // Zet decimaal aandeel om naar breuk (bijv. 0.4 → "2/5")
 function toFraction(decimal: number): string {
@@ -27,6 +28,8 @@ function formatEur(v: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(v)
 }
 
+type DeactivateTarget = { id: number; name: string }
+
 export default function MembersPage() {
   const { user, activeVveId } = useAuthStore()
   const vveId = activeVveId
@@ -35,6 +38,7 @@ export default function MembersPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
+  const [confirmDeact, setConfirmDeact] = useState<DeactivateTarget | null>(null)
 
   const { data: members = [], isLoading } = useQuery<User[]>({
     queryKey: ['members', vveId],
@@ -69,9 +73,7 @@ export default function MembersPage() {
   })
 
   const handleDeactivate = (id: number, name: string) => {
-    if (window.confirm(`Weet u zeker dat u ${name} wilt deactiveren?`)) {
-      deactivate.mutate(id)
-    }
+    setConfirmDeact({ id, name })
   }
 
   if (isLoading) return <div className="p-8 text-gray-500">Laden...</div>
@@ -189,6 +191,15 @@ export default function MembersPage() {
           editUser={editUser}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); qc.invalidateQueries({ queryKey: ['members', vveId] }) }}
+        />
+      )}
+
+      {confirmDeact && (
+        <ConfirmDialog
+          message={`Weet u zeker dat u ${confirmDeact.name} wilt deactiveren?`}
+          confirmLabel="Deactiveren"
+          onConfirm={() => { deactivate.mutate(confirmDeact.id); setConfirmDeact(null) }}
+          onCancel={() => setConfirmDeact(null)}
         />
       )}
     </div>

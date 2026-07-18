@@ -19,8 +19,8 @@ export default function SettingsPage() {
         <p className="text-gray-500 mt-1">VvE-gegevens en persoonlijk profiel beheren</p>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-8">
-        {isBeheerder && (
+      {isBeheerder && (
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-8">
           <button
             onClick={() => setTab('vve')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -29,16 +29,16 @@ export default function SettingsPage() {
           >
             VvE-gegevens
           </button>
-        )}
-        <button
-          onClick={() => setTab('profiel')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            tab === 'profiel' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Mijn profiel
-        </button>
-      </div>
+          <button
+            onClick={() => setTab('profiel')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'profiel' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Mijn profiel
+          </button>
+        </div>
+      )}
 
       {tab === 'vve' && isBeheerder && <VvETab />}
       {tab === 'profiel' && <ProfielTab />}
@@ -62,7 +62,6 @@ function VvETab() {
     address: '',
     kvk_number: '',
     contribution_frequency: 'monthly',
-    share_denominator: 1,
   })
   const [initialized, setInitialized] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -74,7 +73,6 @@ function VvETab() {
       address: vve.address ?? '',
       kvk_number: vve.kvk_number ?? '',
       contribution_frequency: vve.contribution_frequency,
-      share_denominator: vve.share_denominator,
     })
     setInitialized(true)
   }
@@ -138,19 +136,6 @@ function VvETab() {
               <option value="monthly">Maandelijks</option>
               <option value="quarterly">Per kwartaal</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Aandeel-noemer
-              <span className="ml-1 text-xs text-gray-400 font-normal">(totaal aantal breukdelen, bijv. 32)</span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={form.share_denominator}
-              onChange={(e) => setForm((f) => ({ ...f, share_denominator: parseInt(e.target.value) || 1 }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
-            />
           </div>
         </div>
         {error && <p className="text-red-600 text-sm mt-3">{error}</p>}

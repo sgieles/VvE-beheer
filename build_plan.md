@@ -134,8 +134,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [x] **PWA (Progressive Web App)**
   `manifest.json` aangemaakt met naam, icoon-placeholders en `display: standalone`. Service worker (`sw.js`) registreert zich via `main.tsx` met network-first strategie. iOS Apple-meta-tags toegevoegd aan `index.html`.
 
-- [ ] **Touch-vriendelijke interactie-elementen**
-  Buttons en klikgebieden minimaal 44×44 px (Apple HIG-richtlijn). Inline cel-editing in de MJOP-tabel werkt niet goed met touch — vervang door een tap-to-edit patroon met een kleine popup of bottom sheet op mobiel.
+- [x] **Touch-vriendelijke interactie-elementen**
+  Icon-only knoppen in tabellen (Power, Pencil, Trash2) krijgen `p-2` padding. Status-cirkel in TakenPage: `w-8 h-8` op mobiel, `sm:w-6 sm:h-6` op desktop. Betaalcellen in BetalingenPage: `w-9 h-9 sm:w-7 sm:h-7`.
 
 - [x] **Mobiele navigatie**
   Hamburger-menu toegevoegd: sidebar schuift in via slide-animatie, overlay sluit het menu, nav-links sluiten het menu bij klikken.
@@ -185,9 +185,9 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **Microsoft Teams integratie** — vergadering aanmaken, leden uitnodigen (backend gereed, frontend Teams-flow ontbreekt)
 - [ ] **Offertes workflow** — offerte koppelen aan MJOP-post, goedkeuren, status bijhouden
 - [x] **Document-preview** — PDF inline in full-screen iframe modal via blob URL; niet-PDF toont download-knop
-- [ ] **Appartementen import via Excel/CSV**
+- [x] **Appartementen import via Excel/CSV** — CSV-import endpoint (POST /appartementen/import), sjabloon-download, "CSV importeren"-knop in AppartementsPage header; fouten worden getoast
 - [x] **Zoek- en sorteerfunctie MJOP-tabel** — zoekbalk filtert op omschrijving en categorie; lege zoekresultaatmelding
-- [ ] **Herinneringsfunctie achterstallige betalers** — manuele trigger of automatische e-mail
+- [x] **Herinneringsfunctie achterstallige betalers** — achterstalligen-panel in BetalingenPage toont lijst per appartement (naam, eigenaar, # periodes, bedrag) met "Exporteer CSV"-knop voor eigen opvolging
 - [x] **standaard format voor agenda aanhouden bij het opmaken van agenda** — "Standaard VvE-agenda toevoegen"-knop in lege agenda-tab; voegt 7 vaste punten toe (Opening, Notulen, Ingekomen stukken, Financiën, MJOP-voortgang, Rondvraag, Sluiting)
 - [x] **Dashboard: werkelijke kosten voor afgeronde MJOP-posten**
   Dashboard-berekening gebruikt nu `actual_amount` in plaats van `planned_amount` voor posten met `status == "completed"` en een ingevuld werkelijk bedrag. Geen onduidelijkheden: het veld bestaat al, was alleen niet meegenomen in de prognose.

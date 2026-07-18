@@ -200,7 +200,7 @@ export default function TakenPage() {
                     updateTask.mutate({ id: task.id, status: nextStatus })
                   }
                 }}
-                className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                className={`mt-0.5 w-8 h-8 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                   task.status === 'done'
                     ? 'bg-green-500 border-green-500'
                     : task.status === 'in_progress'
@@ -252,7 +252,7 @@ export default function TakenPage() {
                 {isBeheerder && (
                   <button
                     onClick={() => setConfirmDel(task.id)}
-                    className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                    className="text-gray-300 hover:text-red-500 transition-colors p-2"
                   >
                     <Trash2 size={15} />
                   </button>

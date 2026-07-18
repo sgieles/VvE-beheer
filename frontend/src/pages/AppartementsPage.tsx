@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type { Appartement, VvE } from '@/types'
-import { Plus, Pencil, Trash2, X, Home, Power, AlertTriangle } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Home, Power, AlertTriangle, Upload } from 'lucide-react'
 import { toast } from '@/store/toastStore'
 import { apiError } from '@/utils/apiError'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -36,6 +36,41 @@ export default function AppartementsPage() {
   const [error, setError] = useState('')
 
   const [confirmDelApp, setConfirmDelApp] = useState<Appartement | null>(null)
+
+  // CSV import
+  const csvRef = useRef<HTMLInputElement>(null)
+  const [csvImporting, setCsvImporting] = useState(false)
+
+  async function handleCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCsvImporting(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await api.post(`/vves/${vveId}/appartementen/import`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const { created, errors } = res.data as { created: number; errors: string[] }
+      qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
+      qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      toast(`${created} appartement${created !== 1 ? 'en' : ''} geïmporteerd${errors.length ? ` (${errors.length} fout${errors.length !== 1 ? 'en' : ''})` : ''}`)
+      if (errors.length) console.warn('CSV import fouten:', errors)
+    } catch (err) {
+      toast(apiError(err, 'Import mislukt'))
+    } finally {
+      setCsvImporting(false)
+      e.target.value = ''
+    }
+  }
+
+  function downloadCsvTemplate() {
+    const rows = ['naam,nummer,eigenaar_naam,aandeel', 'Appartement A,57a,J. de Vries,3', 'Appartement B,57b,M. Jansen,4']
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'appartementen_sjabloon.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // Denominator edit
   const [showDenomEdit, setShowDenomEdit] = useState(false)
@@ -228,13 +263,30 @@ export default function AppartementsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Appartementen</h1>
           <p className="text-gray-500 mt-1">Beheer de appartementen en aandelen binnen de VvE</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus size={16} />
-          Appartement toevoegen
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} className="hidden" />
+          <button
+            onClick={downloadCsvTemplate}
+            className="text-xs text-gray-500 hover:text-gray-700 underline"
+          >
+            Sjabloon
+          </button>
+          <button
+            onClick={() => csvRef.current?.click()}
+            disabled={csvImporting}
+            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Upload size={15} />
+            {csvImporting ? 'Importeren…' : 'CSV importeren'}
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus size={16} />
+            Toevoegen
+          </button>
+        </div>
       </div>
 
       {/* Instellingen */}
@@ -419,23 +471,23 @@ export default function AppartementsPage() {
                       {bijdrage != null ? formatCurrency(bijdrage) : '—'}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end">
                         <button
                           onClick={() => toggleActiveMut.mutate({ id: a.id, is_active: !isActive })}
                           title={isActive ? 'Deactiveren' : 'Activeren'}
-                          className={`transition-colors ${isActive ? 'text-gray-400 hover:text-amber-500' : 'text-red-400 hover:text-green-500'}`}
+                          className={`p-2 transition-colors ${isActive ? 'text-gray-400 hover:text-amber-500' : 'text-red-400 hover:text-green-500'}`}
                         >
                           <Power size={15} />
                         </button>
                         <button
                           onClick={() => openEdit(a)}
-                          className="text-gray-400 hover:text-primary-600 transition-colors"
+                          className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
                         >
                           <Pencil size={15} />
                         </button>
                         <button
                           onClick={() => setConfirmDelApp(a)}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
+                          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>

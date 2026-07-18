@@ -169,11 +169,11 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [x] **SettingsPage: verberg tab-balk als eigenaar slechts één tab ziet**
   Tab-balk omsloten met `{isBeheerder && ...}` — eigenaar ziet direct het Profiel-formulier zonder lege tab-navigatie.
 
-- [ ] **Mobile-responsive check**
-  Tailwind-breakpoints controleren op alle pagina's; inline bewerkformulieren (AppartementsPage, FinancialPage) breken op smallere schermen.
+- [x] **Mobile-responsive check**
+  AppartementsPage: appartement-tabel wrapped in `overflow-x-auto` + `min-w-[640px]`. AppartementsPage: resterende `window.confirm()` voor appartement-delete vervangen door ConfirmDialog.
 
-- [ ] **Foutmeldingen en validatie verbeteren**
-  API-foutberichten (HTTP 400/422/500) worden momenteel onbewerkt getoond. Vertaal naar gebruiksvriendelijke tekst per actie.
+- [x] **Foutmeldingen en validatie verbeteren**
+  `apiError()` utility + toast `onError` callback toegevoegd aan alle key mutations in TakenPage, MeetingsPage, BetalingenPage, DocumentsPage, FinancialPage, AppartementsPage, SettingsPage.
 
 - [ ] **Onboarding-flow voor nieuwe VvE**
   Stap-voor-stap wizard: VvE aanmaken → appartementen toevoegen → bijdrageplan instellen → MJOP uploaden.
@@ -184,7 +184,7 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **Bijdrage-aanpassing wizard** — stap-voor-stap doorrekening nieuwe bijdrage met impact per appartement
 - [ ] **Microsoft Teams integratie** — vergadering aanmaken, leden uitnodigen (backend gereed, frontend Teams-flow ontbreekt)
 - [ ] **Offertes workflow** — offerte koppelen aan MJOP-post, goedkeuren, status bijhouden
-- [ ] **Document-preview** — PDF inline weergeven zonder download
+- [x] **Document-preview** — PDF inline in full-screen iframe modal via blob URL; niet-PDF toont download-knop
 - [ ] **Appartementen import via Excel/CSV**
 - [x] **Zoek- en sorteerfunctie MJOP-tabel** — zoekbalk filtert op omschrijving en categorie; lege zoekresultaatmelding
 - [ ] **Herinneringsfunctie achterstallige betalers** — manuele trigger of automatische e-mail

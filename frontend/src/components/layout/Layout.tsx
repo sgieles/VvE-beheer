@@ -5,7 +5,7 @@ import api from '@/services/api'
 import type { User, VvE } from '@/types'
 import {
   LayoutDashboard, Home, TrendingUp, CalendarDays, LogOut,
-  Building2, ChevronDown, ShieldCheck, Info, FolderOpen, Settings, Users, FileBarChart2, ClipboardList, CreditCard, Wrench,
+  Building2, ChevronDown, ShieldCheck, Info, FolderOpen, Settings, Users, FileBarChart2, ClipboardList, CreditCard, Wrench, Menu, X,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
@@ -53,11 +53,32 @@ export default function Layout() {
 
   const displayVve = activeVve ?? vves.find((v) => v.id === activeVveId)
   const showVveSwitcher = vves.length > 1 || isAdmin
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mobiel overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <aside className={`
+        w-64 bg-white border-r border-gray-200 flex flex-col
+        fixed inset-y-0 left-0 z-40 transition-transform duration-200
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:relative md:translate-x-0 md:z-auto md:transition-none
+      `}>
+
+        {/* Mobiel: sluitknop */}
+        <div className="md:hidden flex justify-end p-2">
+          <button onClick={() => setMobileOpen(false)} className="p-1 text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
 
         {/* VvE-selector */}
         <div className="p-4 border-b border-gray-200">
@@ -97,6 +118,7 @@ export default function Layout() {
               key={to}
               to={to}
               end={end}
+              onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
@@ -158,9 +180,23 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobiele top-bar */}
+        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shrink-0">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="p-1 text-gray-500 hover:text-gray-800"
+          >
+            <Menu size={22} />
+          </button>
+          <p className="font-semibold text-sm text-gray-900 truncate flex-1">
+            {displayVve?.name ?? '…'}
+          </p>
+        </header>
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

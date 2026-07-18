@@ -1435,7 +1435,7 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
             {entries.length === 0 && (
               <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 text-sm">Nog geen mutaties ingevoerd</td></tr>
             )}
-            {entries.map((e, i) => {
+            {entries.slice().sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime()).map((e, i) => {
               const isContrib = e.entry_type === 'contribution'
               return (
                 <tr key={`${e.entry_type}-${e.id ?? i}`} className={isContrib ? 'bg-emerald-50/40 hover:bg-emerald-50' : 'hover:bg-gray-50'}>

@@ -7,6 +7,7 @@ import { AlertTriangle, Wrench, Plus, ChevronDown, Trash2, MessageSquare, Paperc
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { toast } from '@/store/toastStore'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 type StatusFilter = 'all' | 'nieuw' | 'in_behandeling' | 'opgelost' | 'afgesloten'
 
@@ -44,6 +45,7 @@ export default function MeldingenPage() {
   const [photo, setPhoto] = useState<File | null>(null)
   const photoRef = useRef<HTMLInputElement>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [confirmDel, setConfirmDel] = useState<number | null>(null)
 
   const { data: meldingen = [], isLoading } = useQuery<Melding[]>({
     queryKey: ['meldingen', vveId, filter],
@@ -223,10 +225,7 @@ export default function MeldingenPage() {
                   )}
                   {isBeheerder && (
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (window.confirm('Melding verwijderen?')) deleteMelding.mutate(m.id)
-                      }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDel(m.id) }}
                       className="text-gray-300 hover:text-red-500 transition-colors p-1"
                     >
                       <Trash2 size={15} />
@@ -357,6 +356,14 @@ export default function MeldingenPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDel !== null && (
+        <ConfirmDialog
+          message="Melding verwijderen?"
+          onConfirm={() => { deleteMelding.mutate(confirmDel); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
       )}
     </div>
   )

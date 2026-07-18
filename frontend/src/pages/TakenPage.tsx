@@ -6,6 +6,7 @@ import type { ActionItem, Meeting } from '@/types'
 import { Check, ClipboardList, Plus, Trash2, Circle } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 type StatusFilter = 'all' | 'open' | 'in_progress' | 'done'
 
@@ -24,6 +25,7 @@ export default function TakenPage() {
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', due_date: '', meeting_id: '' })
+  const [confirmDel, setConfirmDel] = useState<number | null>(null)
 
   const { data: tasks = [], isLoading } = useQuery<ActionItem[]>({
     queryKey: ['tasks', vveId],
@@ -210,9 +212,7 @@ export default function TakenPage() {
               <div className="flex items-center gap-2 shrink-0">
                 {isBeheerder && (
                   <button
-                    onClick={() => {
-                      if (window.confirm('Actiepunt verwijderen?')) deleteTask.mutate(task.id)
-                    }}
+                    onClick={() => setConfirmDel(task.id)}
                     className="text-gray-300 hover:text-red-500 transition-colors p-1"
                   >
                     <Trash2 size={15} />
@@ -291,6 +291,14 @@ export default function TakenPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDel !== null && (
+        <ConfirmDialog
+          message="Actiepunt verwijderen?"
+          onConfirm={() => { deleteTask.mutate(confirmDel); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
       )}
     </div>
   )

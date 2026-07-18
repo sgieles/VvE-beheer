@@ -109,11 +109,11 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 
 ### Prioriteit 3 — Duplicaten & technische schuld
 
-- [ ] **Bijdrage aanmaken: verwijder dubbele invoerplek**
-  "Bijdrage aanmaken" staat op zowel AppartementsPage als FinancialPage (zelfde endpoint). Verwijder de knop uit FinancialPage; AppartementsPage → Bijdragen is de bron van waarheid.
+- [x] **Bijdrage aanmaken: verwijder dubbele invoerplek**
+  "Bijdrage aanmaken" staat op zowel AppartementsPage als FinancialPage (zelfde endpoint). Knop en modal verwijderd uit FinancialPage BijdragenTab; lege-staat verwijst nu naar AppartementsPage.
 
-- [ ] **share_denominator: verwijder dubbele invoerplek**
-  `share_denominator` is instelbaar via AppartementsPage én SettingsPage (`PATCH /vves/{id}`). Verwijder het uit SettingsPage, houd het in AppartementsPage met een waarschuwing over financiële impact.
+- [x] **share_denominator: verwijder dubbele invoerplek**
+  `share_denominator` verwijderd uit SettingsPage; blijft uitsluitend in AppartementsPage.
 
 - [ ] **RapportPage: maak het een printbare wrapper, geen datakopie**
   KPI-tiles, prognose-tabel, tekortanalyse en bijdrage-per-appartement zijn identiek aan DashboardPage. Maak RapportPage een `@media print`-view over DashboardPage-data in plaats van een aparte datalaag.
@@ -128,11 +128,11 @@ VvE Beheer geeft een beheerder een helder beeld van toekomstige onderhoudskosten
 
 De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigenaren.
 
-- [ ] **Responsive layout app-breed**
-  Alle pagina's controleren en fixen op smallere schermen (≤ 390px). Huidige knelpunten: MJOP-tabel (te breed voor scroll), inline bewerkformulieren (AppartementsPage, FinancialPage), betalingsmatrix. Gebruik Tailwind `sm:`/`md:` breakpoints en `overflow-x: auto` op tabellen.
+- [x] **Responsive layout app-breed — tabellen**
+  MJOP-tabel en betalingsmatrix hebben nu `overflow-x: auto` + `min-w-max/640px` zodat ze horizontaal scrollen op kleine schermen. Inline bewerkformulieren (AppartementsPage, FinancialPage) nog te fixen.
 
-- [ ] **PWA (Progressive Web App)**
-  Voeg een `manifest.json` en service worker toe zodat de app als icoon op het startscherm geïnstalleerd kan worden (iOS Safari "Voeg toe aan beginscherm", Android Chrome "Installeren"). Minimaal vereist: `manifest.json` met naam, icoon en `display: standalone`, en een basis service worker voor offline-fallback.
+- [x] **PWA (Progressive Web App)**
+  `manifest.json` aangemaakt met naam, icoon-placeholders en `display: standalone`. Service worker (`sw.js`) registreert zich via `main.tsx` met network-first strategie. iOS Apple-meta-tags toegevoegd aan `index.html`.
 
 - [ ] **Touch-vriendelijke interactie-elementen**
   Buttons en klikgebieden minimaal 44×44 px (Apple HIG-richtlijn). Inline cel-editing in de MJOP-tabel werkt niet goed met touch — vervang door een tap-to-edit patroon met een kleine popup of bottom sheet op mobiel.
@@ -148,8 +148,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [x] **App-breed: succes-feedback na mutaties (toast/snackbar)**
   Toast-systeem toegevoegd (toastStore + Toaster-component). MeldingenPage, MeetingsPage, BetalingenPage gebruiken het al.
 
-- [ ] **App-breed: consistente verwijderbevestiging**
-  Sommige pagina's gebruiken `window.confirm()`, andere verwijderen direct. Vervang door één in-app bevestigingsdialoog voor alle destructieve acties.
+- [x] **App-breed: consistente verwijderbevestiging**
+  `ConfirmDialog`-component aangemaakt. Alle 7 `window.confirm()`-calls vervangen in: TakenPage, DocumentsPage, MeetingsPage, MembersPage, MeldingenPage, FinancialPage (OfferteModal).
 
 - [x] **DashboardPage: eigenaar-bijdragekaart linkt door naar BetalingenPage**
   "Bekijk mijn betalingsoverzicht →" link toegevoegd in de eigenaar-bijdragekaart.
@@ -166,8 +166,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [ ] **TakenPage: cyclische status-toggle verduidelijken**
   Klikken doorloopt open → bezig → klaar → open zonder onderscheid tussen "voortgang" en "reset". Voeg een bevestigingsstap toe bij terugzetten naar "open", of gebruik aparte knoppen.
 
-- [ ] **SettingsPage: verberg tab-balk als eigenaar slechts één tab ziet**
-  Eigenaar ziet "Profiel" als enige tab — een lege tab-balk ziet er onaf uit. Toon de tab-balk alleen als er meer dan één tab zichtbaar is.
+- [x] **SettingsPage: verberg tab-balk als eigenaar slechts één tab ziet**
+  Tab-balk omsloten met `{isBeheerder && ...}` — eigenaar ziet direct het Profiel-formulier zonder lege tab-navigatie.
 
 - [ ] **Mobile-responsive check**
   Tailwind-breakpoints controleren op alle pagina's; inline bewerkformulieren (AppartementsPage, FinancialPage) breken op smallere schermen.

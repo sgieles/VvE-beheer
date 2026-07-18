@@ -7,6 +7,7 @@ import { Tooltip, PieChart, Pie, Cell } from 'recharts'
 import { Upload, Plus, Pencil, X, RotateCcw, ChevronDown, ChevronRight, Download, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 function formatEur(v: number | string) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(v))
@@ -487,7 +488,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
               {formatEur(yearItems.reduce((s, i) => s + parseFloat(i.planned_amount), 0))} begroot
             </span>
           </button>
-          {!collapsedYears.has(Number(year)) && <table className="w-full">
+          {!collapsedYears.has(Number(year)) && <div className="overflow-x-auto"><table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-gray-100">
                 {isBeheerder && (
@@ -650,7 +651,7 @@ function MJOPTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }
                 )
               })}
             </tbody>
-          </table>}
+          </table></div>}
         </div>
       ))}
 
@@ -759,6 +760,7 @@ function OfferteModal({
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [showForm, setShowForm] = useState(item.quotes.length === 0 && isBeheerder)
+  const [confirmDel, setConfirmDel] = useState<number | null>(null)
   const [form, setForm] = useState({
     supplier_name: '',
     quoted_amount: '',
@@ -903,9 +905,7 @@ function OfferteModal({
                   )}
                   {isBeheerder && (
                     <button
-                      onClick={() => {
-                        if (window.confirm('Offerte verwijderen?')) deleteQuote.mutate(q.id)
-                      }}
+                      onClick={() => setConfirmDel(q.id)}
                       disabled={deleteQuote.isPending}
                       className="text-gray-300 hover:text-red-500 p-1 transition-colors"
                     >
@@ -1052,6 +1052,13 @@ function OfferteModal({
           )}
         </div>
       </div>
+      {confirmDel !== null && (
+        <ConfirmDialog
+          message="Offerte verwijderen? Dit kan niet ongedaan worden gemaakt."
+          onConfirm={() => { deleteQuote.mutate(confirmDel); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1537,8 +1544,6 @@ function ReserveFondsTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: b
 // --- Bijdragen tab ---
 function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: boolean }) {
   const qc = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ amount_per_period: '', effective_from: '', notes: '' })
   const [editPlan, setEditPlan] = useState<ContributionPlan | null>(null)
   const [editForm, setEditForm] = useState({ effective_to: '', notes: '' })
 
@@ -1546,11 +1551,6 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
     queryKey: ['contributions', vveId],
     queryFn: () => api.get(`/vves/${vveId}/financial/contributions`).then((r) => r.data),
     enabled: !!vveId,
-  })
-
-  const addPlan = useMutation({
-    mutationFn: (data: typeof form) => api.post(`/vves/${vveId}/financial/contributions`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contributions', vveId] }); qc.invalidateQueries({ queryKey: ['dashboard', vveId] }); setShowForm(false) },
   })
 
   const updatePlan = useMutation({
@@ -1585,14 +1585,6 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
 
   return (
     <div className="space-y-6">
-      {isBeheerder && (
-        <div className="flex justify-end">
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg">
-            <Plus size={16} /> Nieuw bijdrageplan
-          </button>
-        </div>
-      )}
-
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
@@ -1612,13 +1604,8 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
                     </div>
                     <p className="text-sm font-medium text-gray-700">Nog geen bijdrageplan</p>
                     <p className="text-xs text-gray-400 max-w-xs">
-                      Voeg een bijdrageplan toe om de maandelijkse of kwartaalbijdragen te registreren. Het systeem berekent hiermee de reservefondsprognose.
+                      Voeg een bijdrageplan toe via het tabblad Appartementen → Bijdragen per eenheid.
                     </p>
-                    {isBeheerder && (
-                      <button onClick={() => setShowForm(true)} className="mt-2 text-xs text-primary-600 hover:text-primary-700 font-medium underline">
-                        Plan toevoegen
-                      </button>
-                    )}
                   </div>
                 </td>
               </tr>
@@ -1655,35 +1642,6 @@ function BijdragenTab({ vveId, isBeheerder }: { vveId: number; isBeheerder: bool
           </tbody>
         </table>
       </div>
-
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold mb-4">Nieuw bijdrageplan</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bedrag per periode (€) *</label>
-                <input type="number" value={form.amount_per_period} onChange={(e) => setForm((f) => ({ ...f, amount_per_period: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Geldig vanaf *</label>
-                <input type="date" value={form.effective_from} onChange={(e) => setForm((f) => ({ ...f, effective_from: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notitie</label>
-                <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowForm(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Annuleren</button>
-              <button onClick={() => addPlan.mutate(form)} className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm hover:bg-primary-700 font-medium">Opslaan</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {editPlan && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

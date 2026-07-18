@@ -6,6 +6,7 @@ import type { VvEDocument } from '@/types'
 import { Upload, Download, Trash2, FileText, FolderOpen, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 const CATEGORIES = [
   { value: 'alle', label: 'Alle documenten' },
@@ -36,6 +37,7 @@ export default function DocumentsPage() {
 
   const [filterCat, setFilterCat] = useState('alle')
   const [showUpload, setShowUpload] = useState(false)
+  const [confirmDel, setConfirmDel] = useState<VvEDocument | null>(null)
 
   const { data: documents = [], isLoading } = useQuery<VvEDocument[]>({
     queryKey: ['documents', vveId],
@@ -61,9 +63,7 @@ export default function DocumentsPage() {
   }
 
   function handleDelete(doc: VvEDocument) {
-    if (window.confirm(`Verwijder "${doc.title}"? Dit kan niet ongedaan worden gemaakt.`)) {
-      deleteMutation.mutate(doc.id)
-    }
+    setConfirmDel(doc)
   }
 
   const filtered = filterCat === 'alle'
@@ -204,6 +204,14 @@ export default function DocumentsPage() {
             setShowUpload(false)
             qc.invalidateQueries({ queryKey: ['documents', vveId] })
           }}
+        />
+      )}
+
+      {confirmDel && (
+        <ConfirmDialog
+          message={`Verwijder "${confirmDel.title}"? Dit kan niet ongedaan worden gemaakt.`}
+          onConfirm={() => { deleteMutation.mutate(confirmDel.id); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
         />
       )}
     </div>

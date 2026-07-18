@@ -7,6 +7,7 @@ import { Check, AlertCircle, RefreshCw, Euro, Clock, TrendingUp, MessageSquare, 
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { toast } from '@/store/toastStore'
+import { apiError } from '@/utils/apiError'
 
 function formatEur(v: number | string) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(v))
@@ -64,7 +65,9 @@ export default function BetalingenPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payments', vveId, year] })
       qc.invalidateQueries({ queryKey: ['payments-summary', vveId, year] })
+      toast('Betaalrecords aangemaakt')
     },
+    onError: (err) => toast(apiError(err, 'Genereren mislukt')),
   })
 
   const updatePayment = useMutation({
@@ -74,6 +77,7 @@ export default function BetalingenPage() {
       qc.invalidateQueries({ queryKey: ['payments', vveId, year] })
       qc.invalidateQueries({ queryKey: ['payments-summary', vveId, year] })
     },
+    onError: (err) => toast(apiError(err, 'Betaalstatus bijwerken mislukt')),
   })
 
   const [notitiesApp, setNotitiesApp] = useState<Appartement | null>(null)

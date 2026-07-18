@@ -6,6 +6,8 @@ import type { ActionItem, Meeting } from '@/types'
 import { Check, ClipboardList, Plus, Trash2, Circle } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { toast } from '@/store/toastStore'
+import { apiError } from '@/utils/apiError'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 type StatusFilter = 'all' | 'open' | 'in_progress' | 'done'
@@ -53,18 +55,22 @@ export default function TakenPage() {
       qc.invalidateQueries({ queryKey: ['tasks', vveId] })
       setForm({ title: '', description: '', due_date: '', meeting_id: '' })
       setShowForm(false)
+      toast('Actiepunt aangemaakt')
     },
+    onError: (err) => toast(apiError(err, 'Aanmaken mislukt')),
   })
 
   const updateTask = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       api.patch(`/vves/${vveId}/tasks/${id}`, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', vveId] }),
+    onError: (err) => toast(apiError(err, 'Status bijwerken mislukt')),
   })
 
   const deleteTask = useMutation({
     mutationFn: (id: number) => api.delete(`/vves/${vveId}/tasks/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', vveId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks', vveId] }); toast('Actiepunt verwijderd') },
+    onError: (err) => toast(apiError(err, 'Verwijderen mislukt')),
   })
 
   const byStatus = filter === 'all' ? tasks : tasks.filter((t) => t.status === filter)

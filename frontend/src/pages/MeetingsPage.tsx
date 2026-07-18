@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { Meeting, AgendaItem, MeetingMinutes, ActionItem } from '@/types'
 import { toast } from '@/store/toastStore'
+import { apiError } from '@/utils/apiError'
 import {
   Plus, CalendarPlus, ListChecks, Check, Video,
   ChevronDown, ChevronUp, CheckCircle2, Trash2, Pencil, Upload, ArrowRight,
@@ -28,6 +29,7 @@ export default function MeetingsPage() {
   const deleteMeeting = useMutation({
     mutationFn: (meetingId: number) => api.delete(`/vves/${vveId}/meetings/${meetingId}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['meetings', vveId] }); toast('Vergadering verwijderd') },
+    onError: (err) => toast(apiError(err, 'Verwijderen mislukt')),
   })
 
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({
@@ -54,7 +56,9 @@ export default function MeetingsPage() {
     onSuccess: (_, meetingId) => {
       qc.invalidateQueries({ queryKey: ['agenda-pending', vveId] })
       qc.invalidateQueries({ queryKey: ['agenda', vveId, meetingId] })
+      toast('Agenda samengesteld')
     },
+    onError: (err) => toast(apiError(err, 'Agenda samenstellen mislukt')),
   })
 
   const upcoming = meetings.filter((m) => m.status === 'planned' && new Date(m.meeting_date) > new Date())

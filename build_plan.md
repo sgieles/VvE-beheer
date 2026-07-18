@@ -160,8 +160,8 @@ De app moet volledig bruikbaar zijn op telefoon, zowel voor beheerders als eigen
 - [x] **MeldingenPage: maak status- en veldbeheer consistent**
   Status én urgentie slaan direct op via `select onChange`. Alleen notitieveld heeft een aparte opslaanknop (logisch voor vrij tekstveld). Eén consistent patroon.
 
-- [ ] **SettingsPage + AppartementsPage: waarschuwing bij wijzigen aandeel-noemer**
-  Wijziging van `share_denominator` herberekent direct alle bijdragen, de betalingsmatrix en het reservefonds-saldo. Toon een preview van de nieuwe bijdragen per appartement en vraag bevestiging vóór opslaan.
+- [x] **SettingsPage + AppartementsPage: waarschuwing bij wijzigen aandeel-noemer**
+  Inline impact-preview toont oud→nieuw bijdrage per appartement zodra denomInput afwijkt. ConfirmDialog vereist bevestiging vóór opslaan.
 
 - [x] **TakenPage: cyclische status-toggle verduidelijken**
   ConfirmDialog toegevoegd voor terugzetten naar "open" (klaar→open). Open→bezig en bezig→klaar werken direct. Title gewijzigd naar "Heropen" bij de terugzet-actie.

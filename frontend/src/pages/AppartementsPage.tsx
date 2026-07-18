@@ -3,7 +3,10 @@ import { useAuthStore } from '@/store/authStore'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type { Appartement, VvE } from '@/types'
-import { Plus, Pencil, Trash2, X, Home, Power } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Home, Power, AlertTriangle } from 'lucide-react'
+import { toast } from '@/store/toastStore'
+import { apiError } from '@/utils/apiError'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
@@ -23,7 +26,7 @@ interface AppartementForm {
 const emptyForm: AppartementForm = { naam: '', nummer: '', eigenaar_naam: '', aandeel: '1' }
 
 export default function AppartementsPage() {
-  const { activeVveId, activeVve } = useAuthStore()
+  const { activeVveId, activeVve, setActiveVve } = useAuthStore()
   const vveId = activeVveId
   const qc = useQueryClient()
 
@@ -35,6 +38,7 @@ export default function AppartementsPage() {
   // Denominator edit
   const [showDenomEdit, setShowDenomEdit] = useState(false)
   const [denomInput, setDenomInput] = useState('')
+  const [confirmDenom, setConfirmDenom] = useState<number | null>(null)
 
   // Bijdrage per eenheid edit
   const [showBijdrageEdit, setShowBijdrageEdit] = useState(false)
@@ -65,8 +69,9 @@ export default function AppartementsPage() {
       qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
       closeModal()
+      toast('Appartement toegevoegd')
     },
-    onError: () => setError('Opslaan mislukt'),
+    onError: (err) => setError(apiError(err, 'Opslaan mislukt')),
   })
 
   const updateMut = useMutation({
@@ -81,8 +86,9 @@ export default function AppartementsPage() {
       qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
       closeModal()
+      toast('Wijzigingen opgeslagen')
     },
-    onError: () => setError('Opslaan mislukt'),
+    onError: (err) => setError(apiError(err, 'Opslaan mislukt')),
   })
 
   const deleteMut = useMutation({
@@ -90,16 +96,20 @@ export default function AppartementsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      toast('Appartement verwijderd')
     },
+    onError: (err) => toast(apiError(err, 'Verwijderen mislukt')),
   })
 
   const toggleActiveMut = useMutation({
     mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
       api.patch(`/vves/${vveId}/appartementen/${id}`, { is_active }),
-    onSuccess: () => {
+    onSuccess: (_, { is_active }) => {
       qc.invalidateQueries({ queryKey: ['appartementen', vveId] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
+      toast(is_active ? 'Appartement geactiveerd' : 'Appartement gedeactiveerd')
     },
+    onError: (err) => toast(apiError(err, 'Status wijzigen mislukt')),
   })
 
   const updateVveMut = useMutation({
@@ -109,11 +119,15 @@ export default function AppartementsPage() {
         contribution_frequency: activeVve?.contribution_frequency ?? 'monthly',
         share_denominator,
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      setActiveVve(res.data)
       qc.invalidateQueries({ queryKey: ['vves'] })
       qc.invalidateQueries({ queryKey: ['dashboard', vveId] })
       setShowDenomEdit(false)
+      setConfirmDenom(null)
+      toast('Aandeel-noemer bijgewerkt')
     },
+    onError: (err) => toast(apiError(err, 'Opslaan mislukt')),
   })
 
   const createBijdrageMut = useMutation({
@@ -127,7 +141,9 @@ export default function AppartementsPage() {
       await qc.refetchQueries({ queryKey: ['dashboard', vveId] })
       qc.invalidateQueries({ queryKey: ['contributions', vveId] })
       setShowBijdrageEdit(false)
+      toast('Bijdrage opgeslagen')
     },
+    onError: (err) => toast(apiError(err, 'Opslaan mislukt')),
   })
 
   function openAdd() {
@@ -300,25 +316,49 @@ export default function AppartementsPage() {
               Aanpassen
             </button>
           ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Noemer:</span>
-              <input
-                type="number"
-                min={1}
-                max={1000}
-                value={denomInput}
-                onChange={(e) => setDenomInput(e.target.value)}
-                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-              />
-              <button
-                onClick={() => updateVveMut.mutate(Math.max(1, parseInt(denomInput) || 1))}
-                className="text-sm bg-primary-600 text-white px-3 py-1 rounded font-medium"
-              >
-                Opslaan
-              </button>
-              <button onClick={() => setShowDenomEdit(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={16} />
-              </button>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Noemer:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={denomInput}
+                  onChange={(e) => setDenomInput(e.target.value)}
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                />
+                <button
+                  onClick={() => setConfirmDenom(Math.max(1, parseInt(denomInput) || 1))}
+                  disabled={!denomInput || parseInt(denomInput) < 1}
+                  className="text-sm bg-primary-600 text-white px-3 py-1 rounded font-medium disabled:opacity-40"
+                >
+                  Opslaan
+                </button>
+                <button onClick={() => setShowDenomEdit(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={16} />
+                </button>
+              </div>
+              {denomInput && parseInt(denomInput) > 0 && parseInt(denomInput) !== shareDenominator && dashboard?.current_contribution_per_period && appartementen.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
+                  <div className="flex items-center gap-1.5 text-amber-800 font-medium mb-1.5">
+                    <AlertTriangle size={13} />
+                    Impact op bijdragen (noemer {shareDenominator} → {parseInt(denomInput)})
+                  </div>
+                  <div className="space-y-0.5">
+                    {appartementen.filter((a) => a.is_active).map((a) => {
+                      const nieuweDenom = parseInt(denomInput)
+                      const oudBij = (parseFloat(a.aandeel) / shareDenominator) * dashboard.current_contribution_per_period
+                      const nieuwBij = (parseFloat(a.aandeel) / nieuweDenom) * dashboard.current_contribution_per_period
+                      return (
+                        <div key={a.id} className="flex justify-between text-amber-700">
+                          <span>{a.naam}</span>
+                          <span>{formatCurrency(oudBij)} → <span className="font-medium">{formatCurrency(nieuwBij)}</span></span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -534,6 +574,16 @@ export default function AppartementsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmDenom !== null && (
+        <ConfirmDialog
+          message={`Aandeel-noemer wijzigen van ${shareDenominator} naar ${confirmDenom}? Dit herberekent de bijdrage per appartement.`}
+          confirmLabel="Wijzigen"
+          danger={false}
+          onConfirm={() => updateVveMut.mutate(confirmDenom)}
+          onCancel={() => setConfirmDenom(null)}
+        />
       )}
     </div>
   )

@@ -6,6 +6,8 @@ import type { VvEDocument } from '@/types'
 import { Upload, Download, Trash2, FileText, FolderOpen, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { toast } from '@/store/toastStore'
+import { apiError } from '@/utils/apiError'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 const CATEGORIES = [
@@ -47,7 +49,8 @@ export default function DocumentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (docId: number) => api.delete(`/vves/${vveId}/documents/${docId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents', vveId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['documents', vveId] }); toast('Document verwijderd') },
+    onError: (err) => toast(apiError(err, 'Verwijderen mislukt')),
   })
 
   async function handleDownload(doc: VvEDocument) {
@@ -244,8 +247,7 @@ function UploadModal({ vveId, onClose, onSaved }: {
       })
       onSaved()
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(msg ?? 'Upload mislukt')
+      setError(apiError(err, 'Upload mislukt'))
     } finally {
       setUploading(false)
     }

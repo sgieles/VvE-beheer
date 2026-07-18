@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/services/api'
 import type { VvE } from '@/types'
 import { Save, Lock } from 'lucide-react'
+import { apiError } from '@/utils/apiError'
 
 type Tab = 'vve' | 'profiel'
 
@@ -86,10 +87,7 @@ function VvETab() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(msg ?? 'Opslaan mislukt')
-    },
+    onError: (err: unknown) => setError(apiError(err, 'Opslaan mislukt')),
   })
 
   return (
@@ -185,10 +183,7 @@ function ProfielTab() {
       setProfileError('')
       setTimeout(() => setProfileSaved(false), 2500)
     },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setProfileError(msg ?? 'Opslaan mislukt')
-    },
+    onError: (err: unknown) => setProfileError(apiError(err, 'Opslaan mislukt')),
   })
 
   const changePassword = useMutation({
@@ -202,10 +197,7 @@ function ProfielTab() {
       setPwForm({ current_password: '', new_password: '', confirm_password: '' })
       setTimeout(() => setPwSaved(false), 2500)
     },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setPwError(msg ?? 'Wachtwoord wijzigen mislukt')
-    },
+    onError: (err: unknown) => setPwError(apiError(err, 'Wachtwoord wijzigen mislukt')),
   })
 
   function handlePasswordSubmit(e: React.FormEvent) {
